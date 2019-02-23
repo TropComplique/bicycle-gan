@@ -1,95 +1,126 @@
 import torch
 import torch.nn as nn
-import torch.nn.init
 
 
-class D_NLayersMulti(nn.Module):
-    def __init__(self, input_nc, ndf=64, n_layers=3):
-        super(D_NLayersMulti, self).__init__()
+class MultiScaleDiscriminator(nn.Module):
+    """
+    This discriminator looks on
+    patches of different scales.
+    """
+    def __init__(self, in_channels, depth=64, num_layers=4):
+        super(MultiScaleDiscriminator, self).__init__()
 
-        self.layers1 = self.get_layers(input_nc, ndf, n_layers, norm_layer)
-        self.down = nn.AvgPool2d(3, stride=2, padding=1, count_include_pad=False)
+        self.subnetwork1 = get_layers(in_channels, depth, num_layers)
+        self.subnetwork2 = get_layers(in_channels, depth // 2, num_layers)
+        self.downsampler = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
 
-        self.layers2 = self.get_layers(input_nc, ndf // 2, n_layers, norm_layer)
-
-    def get_layers(self, in_channels, depth=64, num_layers=3):
-
-        sequence = [
-            nn.Conv2d(in_channels, depth, kernel_size=4, stride=2, padding=1),
-            nn.InstanceNorm2d(depth * m),
-            nn.LeakyReLU(0.2, inplace=True)
-        ]
-
-        m, m_previous = 1, 1
-        for n in range(1, num_layers + 1):
-
-            m_previous = m
-            m = min(2**n, 8)
-
-            sequence += [
-                nn.Conv2d(depth * m_previous, depth * m, kernel_size=4, stride=2, padding=1),
-                nn.InstanceNorm2d(depth * m),
-                nn.LeakyReLU(0.2, inplace=True)
-            ]
-
-        sequence += [
-            nn.Conv2d(depth * m, 1, kernel_size=4, stride=1, padding=1),
-            nn.Sigmoid()
-        ]
-
-
-        if global:
-            sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=2, padding=0)]
-        sequence += [nn.Conv2d(1, 1, kernel_size=7, stride=1, padding=0)]
-
-        def weights_init(m):
-            if isinstance(m, (nn.Conv2d, nn.Linear)):
-                torch.nn.init.kaiming_uniform_(m.weight)
-                if m.bias is not None:
-                    torch.nn.init.zeros_(m.bias)
-
-        self.apply(weights_init)
-        return nn.Sequential(*sequence)
-
-    def forward(self, input):
+    def forward(self, x):
         """
-        I assume that h and w are divisible by 2**downsample.
+        I assume that h and w are
+        divisible by 2**(num_layers + 1).
+
+        The input tensor represents
+        images with pixel values in [0, 1] range.
 
         Arguments:
             x: a float tensor with shape [b, in_channels, h, w].
         Returns:
-            a float tensor with shape [b, 1]???
+            scores1: a float tensor with shape [b, 1, h/s, w/s], where s = 2**num_layers.
+            scores2: a float tensor with shape [b, 1, h/s, w/s], where s = 2**(num_layers + 1).
         """
 
-        result = []
-        result.append(self.layers1(x))
-        x = self.down(x)
-        result.append(self.layers2(x))
-        return result
+        x = 2.0 * x - 1.0
+        scores1 = self.subnetwork1(x)
 
+        x = self.downsampler(x)  # [b, in_channels, h/2, w/2]
+        scores2 = self.subnetwork2(x)
+
+        return scores1, scores2
+
+
+class GlobalDiscriminator(nn.Module):
+    """
+    This discriminator looks
+    on the entire input images.
+    """
+    def __init__(self, in_channels, depth=64, num_layers=4):
+        super(GlobalDiscriminator, self).__init__()
+
+        self.layers = get_layers(in_channels, depth, num_layers)
+        self.global_average_pooling = nn.AdaptiveAvgPool2d(1)
+
+        n = num_layers - 1
+        out_channels = depth * min(2**n, 8)
+        self.fc = nn.Linear(out_channels, 1)
+
+    def forward(self, input):
+        """
+        I assume that h and w are
+        divisible by 2**num_layers.
+
+        Arguments:
+            x: a float tensor with shape [b, in_channels, h, w].
+        Returns:
+            a float tensor with shape [b].
+        """
+        x = 2.0 * x - 1.0
+        x = self.layers(x)
+        x = self.global_average_pooling(x)
+        x = x.view(x.size(0), -1)
+        scores = self.fc(x).squeeze(1)
+        return scores
 
 
 class PixelDiscriminator(nn.Module):
-    def __init__(self, input_nc, ndf=64, norm_layer=nn.BatchNorm2d, use_sigmoid=False):
+    """
+    This discriminator looks
+    only on pixel values.
+    """
+    def __init__(self, in_channels, depth=64):
         super(PixelDiscriminator, self).__init__()
 
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-
-        self.net = [
-            nn.Conv2d(input_nc, ndf, kernel_size=1, stride=1, padding=0),
+        self.layers = nn.Sequential(
+            nn.Conv2d(in_channels, depth, kernel_size=1),
             nn.LeakyReLU(0.2, True),
-            nn.Conv2d(ndf, ndf * 2, kernel_size=1, stride=1, padding=0, bias=use_bias),
-            norm_layer(ndf * 2),
-            nn.LeakyReLU(0.2, True),
-            nn.Conv2d(ndf * 2, 1, kernel_size=1, stride=1, padding=0, bias=use_bias)]
+            nn.Conv2d(depth, depth * 2, kernel_size=1, bias=False),
+            nn.InstanceNorm2d(depth * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(depth * 2, 1, kernel_size=1)
+        )
 
-        if use_sigmoid:
-            self.net.append(nn.Sigmoid())
+    def forward(self, x):
+        """
+        Arguments:
+            x: a float tensor with shape [b, in_channels, h, w].
+        Returns:
+            a float tensor with shape [b, 1, h, w].
+        """
+        return self.layers(x)
 
-        self.net = nn.Sequential(*self.net)
 
-    def forward(self, input):
-        return self.net(input)
+def get_layers(in_channels, depth=64, num_layers=4):
+    """
+    This set of layers downsamples in `2**num_layers` times.
+    """
+    out_channels = in_channels
+    sequence = []
+
+    for n in range(num_layers):
+
+        in_channels = out_channels
+        out_channels = depth * min(2**n, 8)
+
+        sequence.extend([
+            nn.Conv2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.InstanceNorm2d(out_channels),
+            nn.LeakyReLU(0.2, inplace=True)
+        ])
+
+    # add the final score predictor
+    sequence.append(
+        nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
+        nn.InstanceNorm2d(out_channels),
+        nn.LeakyReLU(0.2, inplace=True),
+        nn.Conv2d(out_channels, 1, kernel_size=3, padding=1),
+    )
+    return nn.Sequential(*sequence)
