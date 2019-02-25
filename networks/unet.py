@@ -7,48 +7,66 @@ class UNet(nn.Module):
     def __init__(self, in_channels, out_channels, depth=64, downsample=8):
         super(UNet, self).__init__()
 
+        # NOISE TO STYLE MAPPING
+
+        z_dimension = 8
+        w_dimension = 32
+
+        self.mapping = nn.Sequential(
+            nn.Linear(z_dimension, 32),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(32, w_dimension),
+            nn.LeakyReLU(0.2, inplace=True),
+        )
+
+        # START
+
+        params = {
+            'kernel_size': 4, 'stride': 2,
+            'padding': 1, 'bias': False
+        }
+
         self.beginning = nn.Sequential(
-            nn.Conv2d(
-                in_channels, depth,
-                kernel_size=4, stride=2,
-                padding=1, bias=False
-            ),
+            nn.Conv2d(in_channels, depth, **params),
             nn.InstanceNorm2d(depth)
         )
 
-        z_dimension = 8
-        self.projection = nn.Sequential(
-            nn.Linear(z_dimension, 32),
-            nn.ReLU(inplace=True),
-            nn.Linear(z_dimension, 32),
-            nn.ReLU(inplace=True),
-        )
-        w_dimension = 32
+        # DOWNSAMPLE
 
         down_path = []
         styles = []
         for i in range(1, downsample):
+
             in_depth = min(2**(i - 1), 8) * depth
             out_depth = min(2**i, 8) * depth
+
             down_path.append(UNetBlock(in_depth, out_depth))
             styles.append(nn.Linear(w_dimension, 2 * out_depth))
 
-        up_path = [UNetUpsamplingBlock(8 * depth, 8 * depth)]
-        for i in reversed(range(1, downsample - 1)):
-            in_depth = 2 * min(2**i, 8) * depth
-            out_depth = min(2**(i - 1), 8) * depth
-            up_path.append(UNetUpsamplingBlock(in_depth, out_depth))
-
         self.down_path = nn.ModuleList(down_path)
         self.styles = nn.ModuleList(styles)
+
+        # UPSAMPLE
+
+        up_path = [UNetUpsamplingBlock(8 * depth, 8 * depth)]
+        for i in reversed(range(1, downsample - 1)):
+
+            in_depth = 2 * min(2**i, 8) * depth
+            out_depth = min(2**(i - 1), 8) * depth
+
+            up_path.append(UNetUpsamplingBlock(in_depth, out_depth))
+
         self.up_path = nn.ModuleList(up_path)
 
+        # IMAGE PREDICTOR
+
+        params = {
+            'kernel_size': 4, 'stride': 2,
+            'padding': 1, 'bias': True
+        }
+
         self.end = nn.Sequential(
-            nn.ConvTranspose2d(
-                2 * depth, out_channels,
-                kernel_size=4, stride=2,
-                padding=1
-            ),
+            nn.ConvTranspose2d(2 * depth, out_channels, **params),
             nn.Tanh()
         )
 
@@ -65,11 +83,12 @@ class UNet(nn.Module):
         Returns:
             a float tensor with shape [b, out_channels, h, w].
         """
+
+        w = self.mapping(z)
+        # it has shape [b, w_dimension]
+
         x = 2.0 * x - 1.0
         x = self.beginning(x)
-
-        w = self.projection(z)
-        # it has shape [b, w_dimension]
 
         outputs = [x]
         for i, b in enumerate(self.down_path, 2):
@@ -100,7 +119,7 @@ class AdaptiveInstanceNorm(nn.Module):
 
     def __init__(self, in_channels):
         super(AdaptiveInstanceNorm, self).__init__()
-        self.layers = nn.InstanceNorm2d(in_channels)
+        self.normalize = nn.InstanceNorm2d(in_channels)
 
     def forward(self, x, weights):
         """
@@ -115,7 +134,7 @@ class AdaptiveInstanceNorm(nn.Module):
         # it has shape [b, 2 * d, 1, 1]
 
         gamma, beta = torch.split(weights, [d, d], dim=1)
-        return gamma * self.layers(x) + beta
+        return (gamma + 1.0) * self.normalize(x) + beta
 
 
 class UNetBlock(nn.Module):
@@ -123,13 +142,14 @@ class UNetBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(UNetBlock, self).__init__()
 
+        params = {
+            'kernel_size': 4, 'stride': 2,
+            'padding': 1, 'bias': False
+        }
+
         self.layers = nn.Sequential(
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(
-                in_channels, out_channels,
-                kernel_size=4, stride=2,
-                padding=1, bias=False
-            )
+            nn.Conv2d(in_channels, out_channels, **params)
         )
         self.adain = AdaptiveInstanceNorm(out_channels)
 
@@ -144,13 +164,14 @@ class UNetUpsamplingBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(UNetUpsamplingBlock, self).__init__()
 
+        params = {
+            'kernel_size': 4, 'stride': 2,
+            'padding': 1, 'bias': False
+        }
+
         self.layers = nn.Sequential(
             nn.ReLU(inplace=True)
-            nn.ConvTranspose2d(
-                in_channels, out_channels,
-                kernel_size=4, stride=2,
-                padding=1, bias=False
-            ),
+            nn.ConvTranspose2d(in_channels, out_channels, **params),
             nn.InstanceNorm2d(out_channels)
         )
 

@@ -1,7 +1,11 @@
 import torch
-import torch.nn.init
+import torch.nn.init as init
 import torch.nn as nn
 import torch.nn.functional as F
+
+from networks.unet import UNet
+from networks.encoder import ResNetEncoder
+from networks.discriminators import MultiScaleDiscriminator
 
 
 class LSGAN(nn.Module):
@@ -25,21 +29,21 @@ class LSGAN(nn.Module):
 
 class BicycleGAN:
 
-    def __init__(self, device, z_dimension=8):
+    def __init__(self, device, num_steps, z_dimension=8):
 
         # in and out channels for the generator:
         a, b = 1, 3
 
-        self.G = UNet(a, b, depth=64, downsample=8)
-        self.E = ResNetEncoder(a, z_dimension, depth=64, num_blocks=5)
+        self.G = UNet(a, b, depth=64)
+        self.E = ResNetEncoder(a, z_dimension, depth=64)
         self.D1 = MultiScaleDiscriminator(b, depth=64)
         self.D2 = MultiScaleDiscriminator(b, depth=64)
 
         def weights_init(m):
             if isinstance(m, (nn.Conv2d, nn.Linear)):
-                torch.nn.init.xavier_normal_(m.weight, gain=0.02)
+                init.xavier_normal_(m.weight, gain=0.02)
                 if m.bias is not None:
-                    torch.nn.init.zeros_(m.bias)
+                    init.zeros_(m.bias)
 
         self.G = G.apply(weights_init).to(device)
         self.E = E.apply(weights_init).to(device)
@@ -61,9 +65,14 @@ class BicycleGAN:
 
     def train_step(self, A, B):
         """
+        The input tensors represent images
+        with pixel values in [0, 1] range.
+
         Arguments:
             A: a float tensor with shape [n, a, h, w].
             B: a float tensor with shape [2 * n, b, h, w].
+        Returns:
+            a dict with float numbers.
         """
         A = A.to(self.device)
         B = B.to(self.device)
@@ -164,6 +173,7 @@ class BicycleGAN:
             'l1_loss': l1_loss.item(),
             'kl_loss': kl_loss.item(),
             'lr_loss': lr_loss.item(),
+            'total_loss': total_loss.item(),
             'discriminators_loss': d_loss.item(),
         }
         return loss_dict

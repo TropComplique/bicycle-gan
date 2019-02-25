@@ -5,6 +5,16 @@ import torch.nn as nn
 class ResnetGenerator(nn.Module):
 
     def __init__(self, in_channels, out_channels, depth, downsample, num_blocks):
+        """
+        Arguments:
+            in_channels: an integer.
+            out_channels: an integer.
+            depth: an integer.
+            downsample: an integer, the input will
+                be downsampled in `2**downsample` times
+                before applying resnet blocks.
+            num_blocks: an integer, number of resnet blocks.
+        """
         super(ResnetGenerator, self).__init__()
 
         # BEGINNING
@@ -18,14 +28,15 @@ class ResnetGenerator(nn.Module):
 
         # DOWNSAMPLING
 
+        params = {
+            'kernel_size': 3, 'stride': 2,
+            'padding': 1, 'bias': False
+        }
+
         for i in range(downsample):
             m = 2**i  # multiplier
             layers.extend([
-                nn.Conv2d(
-                    depth * m, depth * m * 2,
-                    kernel_size=3, stride=2,
-                    padding=1, bias=False
-                ),
+                nn.Conv2d(depth * m, depth * m * 2, **params),
                 nn.InstanceNorm2d(depth * m * 2),
                 nn.ReLU(inplace=True)
             ])
@@ -38,15 +49,17 @@ class ResnetGenerator(nn.Module):
 
         # UPSAMPLING
 
+        params = {
+            'kernel_size': 3, 'stride': 2,
+            'padding': 1, 'bias': False
+            'output_padding': 1
+        }
+
         for i in range(downsample):
-            m = 2**(downsample - i)
+            m = 2**(downsample - 1 - i)
             layers.extend([
-                nn.ConvTranspose2d(
-                    depth * m, (depth * m) // 2,
-                    kernel_size=3, stride=2, padding=1,
-                    output_padding=1, bias=False
-                ),
-                nn.InstanceNorm2d((depth * m) // 2),
+                nn.ConvTranspose2d(depth * m * 2, depth * m, **params),
+                nn.InstanceNorm2d(depth * m),
                 nn.ReLU(inplace=True)
             ])
 

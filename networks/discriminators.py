@@ -7,17 +7,17 @@ class MultiScaleDiscriminator(nn.Module):
     This discriminator looks on
     patches of different scales.
     """
-    def __init__(self, in_channels, depth=64, num_layers=4):
+    def __init__(self, in_channels, depth=64, downsample=4):
         super(MultiScaleDiscriminator, self).__init__()
 
-        self.subnetwork1 = get_layers(in_channels, depth, num_layers)
-        self.subnetwork2 = get_layers(in_channels, depth // 2, num_layers)
+        self.subnetwork1 = get_layers(in_channels, depth, downsample)
+        self.subnetwork2 = get_layers(in_channels, depth // 2, downsample)
         self.downsampler = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
 
     def forward(self, x):
         """
         I assume that h and w are
-        divisible by 2**(num_layers + 1).
+        divisible by 2**(downsample + 1).
 
         The input tensor represents
         images with pixel values in [0, 1] range.
@@ -25,8 +25,9 @@ class MultiScaleDiscriminator(nn.Module):
         Arguments:
             x: a float tensor with shape [b, in_channels, h, w].
         Returns:
-            scores1: a float tensor with shape [b, 1, h/s, w/s], where s = 2**num_layers.
-            scores2: a float tensor with shape [b, 1, h/s, w/s], where s = 2**(num_layers + 1).
+            scores1: a float tensor with shape [b, 1, h/s, w/s].
+            scores2: a float tensor with shape [b, 1, (h/s)/2, (w/s)/2],
+                where s = 2**downsample.
         """
 
         x = 2.0 * x - 1.0
@@ -43,20 +44,20 @@ class GlobalDiscriminator(nn.Module):
     This discriminator looks
     on the entire input images.
     """
-    def __init__(self, in_channels, depth=64, num_layers=4):
+    def __init__(self, in_channels, depth=64, downsample=4):
         super(GlobalDiscriminator, self).__init__()
 
-        self.layers = get_layers(in_channels, depth, num_layers)
+        self.layers = get_layers(in_channels, depth, downsample)
         self.global_average_pooling = nn.AdaptiveAvgPool2d(1)
 
-        n = num_layers - 1
+        n = downsample - 1
         out_channels = depth * min(2**n, 8)
         self.fc = nn.Linear(out_channels, 1)
 
     def forward(self, input):
         """
         I assume that h and w are
-        divisible by 2**num_layers.
+        divisible by 2**downsample.
 
         Arguments:
             x: a float tensor with shape [b, in_channels, h, w].
@@ -80,8 +81,9 @@ class PixelDiscriminator(nn.Module):
         super(PixelDiscriminator, self).__init__()
 
         self.layers = nn.Sequential(
-            nn.Conv2d(in_channels, depth, kernel_size=1),
-            nn.LeakyReLU(0.2, True),
+            nn.Conv2d(in_channels, depth, kernel_size=1, bias=False),
+            nn.InstanceNorm2d(depth),
+            nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(depth, depth * 2, kernel_size=1, bias=False),
             nn.InstanceNorm2d(depth * 2),
             nn.LeakyReLU(0.2, inplace=True),
@@ -98,20 +100,25 @@ class PixelDiscriminator(nn.Module):
         return self.layers(x)
 
 
-def get_layers(in_channels, depth=64, num_layers=4):
+def get_layers(in_channels, depth=64, downsample=4):
     """
-    This set of layers downsamples in `2**num_layers` times.
+    This set of layers downsamples in `2**downsample` times.
     """
     out_channels = in_channels
     sequence = []
 
-    for n in range(num_layers):
+    params = {
+        'kernel_size': 4, 'stride': 2,
+        'padding': 1, 'bias': False
+    }
+
+    for n in range(downsample):
 
         in_channels = out_channels
         out_channels = depth * min(2**n, 8)
 
         sequence.extend([
-            nn.Conv2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.Conv2d(in_channels, out_channels, **params),
             nn.InstanceNorm2d(out_channels),
             nn.LeakyReLU(0.2, inplace=True)
         ])

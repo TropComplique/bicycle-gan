@@ -5,6 +5,13 @@ import torch.nn as nn
 class ResNetEncoder(nn.Module):
 
     def __init__(self, in_channels, out_dimension, depth=64, num_blocks=4):
+        """
+        Arguments:
+            in_channels: an integer.
+            out_channels: an integer.
+            depth: an integer.
+            num_blocks: an integer, number of resnet blocks.
+        """
         super(ResNetEncoder, self).__init__()
 
         layers = [
@@ -12,9 +19,9 @@ class ResNetEncoder(nn.Module):
         ]
 
         for n in range(1, num_blocks + 1):
-            in_channels = depth * min(4, n)
-            out_channels = depth * min(4, n + 1)
-            layers.append(BasicBlock(in_channels, out_channels))
+            in_depth = depth * min(4, n)
+            out_depth = depth * min(4, n + 1)
+            layers.append(BasicBlock(in_depth, out_depth))
 
         # so, after all these layers the
         # input is downsampled by 2**(1 + num_blocks)
@@ -25,8 +32,8 @@ class ResNetEncoder(nn.Module):
         ])
 
         self.layers = nn.Sequential(*layers)
-        self.fc1 = nn.Linear(out_channels, out_dimension)
-        self.fc2 = nn.Linear(out_channels, out_dimension)
+        self.fc1 = nn.Linear(out_depth, out_dimension)
+        self.fc2 = nn.Linear(out_depth, out_dimension)
 
     def forward(self, x):
         """
