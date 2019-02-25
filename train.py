@@ -1,11 +1,12 @@
 import json
+import torch
 from torch.utils.data import DataLoader
 from input_pipeline import PairsDataset
 from model import BicycleGAN
 
-BATCH_SIZE = 2
-DATA = ''
-NUM_EPOCHS = 20
+BATCH_SIZE = 8
+DATA = '/home/dan/datasets/edges2shoes/train/'
+NUM_EPOCHS = 60
 DEVICE = torch.device('cuda:0')
 MODEL_SAVE_PREFIX = 'models/run00'
 TRAIN_LOGS = 'losses_run00.json'
@@ -25,12 +26,15 @@ def main():
 
     logs = []
     i = 0  # number of weight updates
-    text = 'e: {0}, i: {1}, discriminators_only: {2:.3f}' +\
-           'l1: {3:.3f}, kl: {4:.3f}, lr: {5:.3f}' +\
+    text = 'e: {0}, i: {1}, discriminators_only: {2:.3f}, ' +\
+           'l1: {3:.3f}, kl: {4:.4f}, lr: {5:.3f}, ' +\
            'fool_d1: {6:.3f}, fool_d2: {7:.3f}, total: {8:.3f}'
 
     for e in range(NUM_EPOCHS):
         for A, B in data_loader:
+
+            half = BATCH_SIZE // 2
+            A = A[:half]
 
             i += 1
             losses = model.train_step(A, B)

@@ -1,7 +1,9 @@
 import torch
 import torch.nn.init as init
 import torch.nn as nn
+import torch.optim as optim
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from networks.unet import UNet
 from networks.encoder import ResNetEncoder
@@ -16,15 +18,17 @@ class LSGAN(nn.Module):
     def forward(self, x, is_real):
         """
         Arguments:
-            x: a float tensor with any shape.
+            x: a tuple of float tensors with any shape.
             is_real: a boolean.
         Returns:
             a float tensor with shape [].
         """
-        if is_real:
-            return torch.pow(x - 1.0, 2).mean()
+        x1, x2 = x
 
-        return torch.pow(x, 2).mean()
+        if is_real:
+            return torch.pow(x1 - 1.0, 2).mean() + torch.pow(x2 - 1.0, 2).mean()
+
+        return torch.pow(x1, 2).mean() + torch.pow(x2, 2).mean()
 
 
 class BicycleGAN:
@@ -34,10 +38,10 @@ class BicycleGAN:
         # in and out channels for the generator:
         a, b = 1, 3
 
-        self.G = UNet(a, b, depth=64)
-        self.E = ResNetEncoder(a, z_dimension, depth=64)
-        self.D1 = MultiScaleDiscriminator(b, depth=64)
-        self.D2 = MultiScaleDiscriminator(b, depth=64)
+        G = UNet(a, b, depth=64)
+        E = ResNetEncoder(b, z_dimension, depth=64)
+        D1 = MultiScaleDiscriminator(b, depth=64)
+        D2 = MultiScaleDiscriminator(b, depth=64)
 
         def weights_init(m):
             if isinstance(m, (nn.Conv2d, nn.Linear)):
@@ -51,10 +55,16 @@ class BicycleGAN:
         self.D2 = D2.apply(weights_init).to(device)
 
         betas = (0.5, 0.999)
-        self.G_optimizer = optim.Adam(lr=2e-4, params=self.G.parameters(), betas=betas)
-        self.E_optimizer = optim.Adam(lr=2e-4, params=self.E.parameters(), betas=betas)
-        self.D1_optimizer = optim.Adam(lr=4e-4, params=self.D1.parameters(), betas=betas)
-        self.D2_optimizer = optim.Adam(lr=4e-4, params=self.D2.parameters(), betas=betas)
+        self.optimizer = {
+            'G': optim.Adam(lr=2e-4, params=self.G.parameters(), betas=betas),
+            'E': optim.Adam(lr=2e-4, params=self.E.parameters(), betas=betas),
+            'D1': optim.Adam(lr=4e-4, params=self.D1.parameters(), betas=betas),
+            'D2': optim.Adam(lr=4e-4, params=self.D2.parameters(), betas=betas)
+        }
+
+        self.schedulers = []
+        for o in self.optimizer.values():
+            self.schedulers.append(CosineAnnealingLR(o, T_max=num_steps, eta_min=1e-7))
 
         self.gan_loss = LSGAN()
         self.z_dimension = z_dimension
@@ -119,16 +129,16 @@ class BicycleGAN:
         # note that KL(N(mean, var) || N(0, 1)) =
         # = 0.5 * sum_k (exp(log(var_k)) + mean_k^2 - 1 - log(var_k)),
         # where mean and var are k-dimensional vectors
-        kl_loss = 0.5 * (logvar.exp() + mean.pow(2) - 1.0 - logvar).sum(0)
+        kl_loss = 0.5 * (logvar.exp() + mean.pow(2) - 1.0 - logvar).sum(1).mean(0)
 
         # UPDATE GENERATOR AND ENCODER
 
         total_loss = fool_d1_loss + fool_d2_loss + 10.0 * l1_loss + 1e-2 * kl_loss
-        self.G_optimizer.zero_grad()
-        self.E_optimizer.zero_grad()
-        total_loss.backward()
-        self.G_optimizer.step()
-        self.E_optimizer.step()
+        self.optimizer['G'].zero_grad()
+        self.optimizer['E'].zero_grad()
+        total_loss.backward(retain_graph=True)
+        self.optimizer['G'].step()
+        self.optimizer['E'].step()
 
         # LATENT REGRESSION LOSS
 
@@ -136,9 +146,9 @@ class BicycleGAN:
 
         # UPDATE THE GENERATOR ONLY
 
-        self.G_optimizer.zero_grad()
+        self.optimizer['G'].zero_grad()
         lr_loss.backward()
-        self.G_optimizer.step()
+        self.optimizer['G'].step()
 
         # UPDATE THE DISCRIMINATORS
 
@@ -161,11 +171,15 @@ class BicycleGAN:
         scores = self.D2(B_another)
         d_loss += self.gan_loss(scores, True)
 
-        self.D1_optimizer.zero_grad()
-        self.D2_optimizer.zero_grad()
+        self.optimizer['D1'].zero_grad()
+        self.optimizer['D2'].zero_grad()
         d_loss.backward()
-        self.D1_optimizer.step()
-        self.D2_optimizer.step()
+        self.optimizer['D1'].step()
+        self.optimizer['D2'].step()
+
+        # decay learning rate
+        for s in self.schedulers:
+            s.step()
 
         loss_dict = {
             'fool_d1_loss': fool_d1_loss.item(),

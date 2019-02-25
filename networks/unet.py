@@ -130,6 +130,7 @@ class AdaptiveInstanceNorm(nn.Module):
             a float tensor with shape [b, d, h, w].
         """
 
+        d = x.size(1)
         weights = weights.unsqueeze(2).unsqueeze(3)
         # it has shape [b, 2 * d, 1, 1]
 
@@ -170,7 +171,7 @@ class UNetUpsamplingBlock(nn.Module):
         }
 
         self.layers = nn.Sequential(
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(in_channels, out_channels, **params),
             nn.InstanceNorm2d(out_channels)
         )

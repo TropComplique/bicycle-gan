@@ -64,8 +64,8 @@ def random_crop(image, gamma=0.5):
 
     # size and position of a crop
     size = np.random.randint(int(min_dimension * gamma), min_dimension)
-    y = np.random.randint(0, height - size)
-    x = np.random.randint(0, width - size)
+    y = np.random.randint(0, h - size)
+    x = np.random.randint(0, w - size)
 
     ymin, xmin, ymax, xmax = y, x, y + size, x + size
     image = image[ymin:ymax, xmin:xmax]

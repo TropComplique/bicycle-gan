@@ -124,10 +124,10 @@ def get_layers(in_channels, depth=64, downsample=4):
         ])
 
     # add the final score predictor
-    sequence.append(
+    sequence.extend([
         nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
         nn.InstanceNorm2d(out_channels),
         nn.LeakyReLU(0.2, inplace=True),
-        nn.Conv2d(out_channels, 1, kernel_size=3, padding=1),
-    )
+        nn.Conv2d(out_channels, 1, kernel_size=3, padding=1)
+    ])
     return nn.Sequential(*sequence)
