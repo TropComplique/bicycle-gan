@@ -40,7 +40,7 @@ class PairsDataset(Dataset):
 
         if self.is_training:
             image = np.concatenate([edges, image], axis=2)
-            image = random_crop(image, gamma=0.9)
+            image = random_crop(image, gamma=0.95)
             image = random_flip(image)
             image = cv2.resize(image, self.size, cv2.INTER_LINEAR)
             edges, image = np.split(image, [1], axis=2)

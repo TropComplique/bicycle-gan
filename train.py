@@ -4,13 +4,13 @@ from torch.utils.data import DataLoader
 from input_pipeline import PairsDataset
 from model import BicycleGAN
 
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 DATA = '/home/dan/datasets/edges2shoes/train/'
 NUM_EPOCHS = 60
 DEVICE = torch.device('cuda:0')
-MODEL_SAVE_PREFIX = 'models/run00'
-TRAIN_LOGS = 'losses_run00.json'
-SAVE_STEP = 1000
+MODEL_SAVE_PREFIX = 'models/run01'
+TRAIN_LOGS = 'losses_run01.json'
+SAVE_STEP = 10000
 
 
 def main():

@@ -123,6 +123,13 @@ def get_layers(in_channels, depth=64, downsample=4):
             nn.LeakyReLU(0.2, inplace=True)
         ])
 
+    """
+    Right now receptive field is
+    22 if downsample = 3,
+    46 if downsample = 4,
+    94 if downsample = 5.
+    """
+
     # add the final score predictor
     sequence.extend([
         nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
@@ -130,4 +137,13 @@ def get_layers(in_channels, depth=64, downsample=4):
         nn.LeakyReLU(0.2, inplace=True),
         nn.Conv2d(out_channels, 1, kernel_size=3, padding=1)
     ])
+
+    """
+    Right now receptive field is
+    54 if downsample = 3,
+    110 if downsample = 4,
+    222 if downsample = 5.
+    See https://fomoro.com/projects/project/receptive-field-calculator
+    """
+
     return nn.Sequential(*sequence)

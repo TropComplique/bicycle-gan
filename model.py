@@ -40,8 +40,8 @@ class BicycleGAN:
 
         G = UNet(a, b, depth=64)
         E = ResNetEncoder(b, z_dimension, depth=64)
-        D1 = MultiScaleDiscriminator(b, depth=64)
-        D2 = MultiScaleDiscriminator(b, depth=64)
+        D1 = MultiScaleDiscriminator(b, depth=64, downsample=3)
+        D2 = MultiScaleDiscriminator(b, depth=64, downsample=3)
 
         def weights_init(m):
             if isinstance(m, (nn.Conv2d, nn.Linear)):

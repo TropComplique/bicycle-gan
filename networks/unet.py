@@ -10,12 +10,14 @@ class UNet(nn.Module):
         # NOISE TO STYLE MAPPING
 
         z_dimension = 8
-        w_dimension = 32
+        w_dimension = 64
 
         self.mapping = nn.Sequential(
             nn.Linear(z_dimension, 32),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(32, w_dimension),
+            nn.Linear(64, 64),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(64, w_dimension),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
