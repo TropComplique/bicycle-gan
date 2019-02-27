@@ -7,7 +7,7 @@ class MultiScaleDiscriminator(nn.Module):
     This discriminator looks on
     patches of different scales.
     """
-    def __init__(self, in_channels, depth=64, downsample=4):
+    def __init__(self, in_channels, depth=64, downsample=3):
         super(MultiScaleDiscriminator, self).__init__()
 
         self.subnetwork1 = get_layers(in_channels, depth, downsample)
@@ -82,10 +82,10 @@ class PixelDiscriminator(nn.Module):
 
         self.layers = nn.Sequential(
             nn.Conv2d(in_channels, depth, kernel_size=1, bias=False),
-            nn.InstanceNorm2d(depth),
+            nn.InstanceNorm2d(depth, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(depth, depth * 2, kernel_size=1, bias=False),
-            nn.InstanceNorm2d(depth * 2),
+            nn.InstanceNorm2d(depth * 2, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(depth * 2, 1, kernel_size=1)
         )
@@ -100,7 +100,7 @@ class PixelDiscriminator(nn.Module):
         return self.layers(x)
 
 
-def get_layers(in_channels, depth=64, downsample=4):
+def get_layers(in_channels, depth=64, downsample=3):
     """
     This set of layers downsamples in `2**downsample` times.
     """
@@ -119,7 +119,7 @@ def get_layers(in_channels, depth=64, downsample=4):
 
         sequence.extend([
             nn.Conv2d(in_channels, out_channels, **params),
-            nn.InstanceNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels, affine=True),
             nn.LeakyReLU(0.2, inplace=True)
         ])
 
@@ -133,7 +133,7 @@ def get_layers(in_channels, depth=64, downsample=4):
     # add the final score predictor
     sequence.extend([
         nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
-        nn.InstanceNorm2d(out_channels),
+        nn.InstanceNorm2d(out_channels, affine=True),
         nn.LeakyReLU(0.2, inplace=True),
         nn.Conv2d(out_channels, 1, kernel_size=3, padding=1)
     ])

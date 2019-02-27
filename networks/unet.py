@@ -4,20 +4,20 @@ import torch.nn as nn
 
 class UNet(nn.Module):
 
-    def __init__(self, in_channels, out_channels, depth=64, downsample=8):
+    def __init__(self, in_channels, out_channels, depth=64, downsample=6):
         super(UNet, self).__init__()
 
         # NOISE TO STYLE MAPPING
 
         z_dimension = 8
-        w_dimension = 64
+        w_dimension = 128
 
         self.mapping = nn.Sequential(
-            nn.Linear(z_dimension, 32),
+            nn.Linear(z_dimension, 128),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(64, 64),
+            nn.Linear(128, 128),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(64, w_dimension),
+            nn.Linear(128, w_dimension),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
@@ -30,7 +30,7 @@ class UNet(nn.Module):
 
         self.beginning = nn.Sequential(
             nn.Conv2d(in_channels, depth, **params),
-            nn.InstanceNorm2d(depth)
+            nn.InstanceNorm2d(depth, affine=True)
         )
 
         # DOWNSAMPLE
@@ -175,7 +175,7 @@ class UNetUpsamplingBlock(nn.Module):
         self.layers = nn.Sequential(
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(in_channels, out_channels, **params),
-            nn.InstanceNorm2d(out_channels)
+            nn.InstanceNorm2d(out_channels, affine=True)
         )
 
     def forward(self, x):

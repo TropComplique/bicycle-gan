@@ -22,7 +22,7 @@ class ResnetGenerator(nn.Module):
         layers = [
             nn.ReflectionPad2d(3),
             nn.Conv2d(in_channels, depth, kernel_size=7, bias=False),
-            nn.InstanceNorm2d(depth),
+            nn.InstanceNorm2d(depth, affine=True),
             nn.ReLU(inplace=True)
         ]
 
@@ -37,7 +37,7 @@ class ResnetGenerator(nn.Module):
             m = 2**i  # multiplier
             layers.extend([
                 nn.Conv2d(depth * m, depth * m * 2, **params),
-                nn.InstanceNorm2d(depth * m * 2),
+                nn.InstanceNorm2d(depth * m * 2, affine=True),
                 nn.ReLU(inplace=True)
             ])
 
@@ -59,7 +59,7 @@ class ResnetGenerator(nn.Module):
             m = 2**(downsample - 1 - i)
             layers.extend([
                 nn.ConvTranspose2d(depth * m * 2, depth * m, **params),
-                nn.InstanceNorm2d(depth * m),
+                nn.InstanceNorm2d(depth * m, affine=True),
                 nn.ReLU(inplace=True)
             ])
 
@@ -99,11 +99,11 @@ class ResnetBlock(nn.Module):
         self.layers = nn.Sequential(
             nn.ReflectionPad2d(1),
             nn.Conv2d(depth, depth, kernel_size=3, bias=False),
-            nn.InstanceNorm2d(depth),
+            nn.InstanceNorm2d(depth, affine=True),
             nn.ReLU(inplace=True),
             nn.ReflectionPad2d(1),
             nn.Conv2d(depth, depth, kernel_size=3, bias=False),
-            nn.InstanceNorm2d(depth)
+            nn.InstanceNorm2d(depth, affine=True)
         )
 
     def forward(self, x):

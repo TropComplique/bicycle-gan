@@ -63,10 +63,10 @@ class BasicBlock(nn.Module):
         super(BasicBlock, self).__init__()
 
         self.layers = nn.Sequential(
-            nn.InstanceNorm2d(in_channels),
+            nn.InstanceNorm2d(in_channels, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, bias=False),
-            nn.InstanceNorm2d(in_channels),
+            nn.InstanceNorm2d(in_channels, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.AvgPool2d(kernel_size=2, stride=2)

@@ -15,20 +15,18 @@ class LSGAN(nn.Module):
     def __init__(self):
         super(LSGAN, self).__init__()
 
-    def forward(self, x, is_real):
+    def forward(self, scores, is_real):
         """
         Arguments:
-            x: a tuple of float tensors with any shape.
+            scores: a tuple of float tensors with any shape.
             is_real: a boolean.
         Returns:
             a float tensor with shape [].
         """
-        x1, x2 = x
-
         if is_real:
-            return torch.pow(x1 - 1.0, 2).mean() + torch.pow(x2 - 1.0, 2).mean()
+            return sum(torch.pow(x - 1.0, 2).mean() for x in scores)
 
-        return torch.pow(x1, 2).mean() + torch.pow(x2, 2).mean()
+        return sum(torch.pow(x, 2).mean() for x in scores)
 
 
 class BicycleGAN:
@@ -38,16 +36,19 @@ class BicycleGAN:
         # in and out channels for the generator:
         a, b = 1, 3
 
-        G = UNet(a, b, depth=64)
-        E = ResNetEncoder(b, z_dimension, depth=64)
-        D1 = MultiScaleDiscriminator(b, depth=64, downsample=3)
-        D2 = MultiScaleDiscriminator(b, depth=64, downsample=3)
+        G = UNet(a, b)
+        E = ResNetEncoder(b, z_dimension)
+        D1 = MultiScaleDiscriminator(b)
+        D2 = MultiScaleDiscriminator(b)
 
         def weights_init(m):
-            if isinstance(m, (nn.Conv2d, nn.Linear)):
-                init.xavier_normal_(m.weight, gain=0.02)
+            if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
+                init.kaiming_normal_(m.weight, a=0.2)
                 if m.bias is not None:
                     init.zeros_(m.bias)
+            elif isinstance(m, nn.InstanceNorm2d) and m.affine:
+                init.ones_(m.weight)
+                init.zeros_(m.bias)
 
         self.G = G.apply(weights_init).to(device)
         self.E = E.apply(weights_init).to(device)
@@ -56,10 +57,10 @@ class BicycleGAN:
 
         betas = (0.5, 0.999)
         self.optimizer = {
-            'G': optim.Adam(lr=2e-4, params=self.G.parameters(), betas=betas),
-            'E': optim.Adam(lr=2e-4, params=self.E.parameters(), betas=betas),
-            'D1': optim.Adam(lr=4e-4, params=self.D1.parameters(), betas=betas),
-            'D2': optim.Adam(lr=4e-4, params=self.D2.parameters(), betas=betas)
+            'G': optim.Adam(self.G.parameters(), lr=2e-4, betas=betas),
+            'E': optim.Adam(self.E.parameters(), lr=2e-4, betas=betas),
+            'D1': optim.Adam(self.D1.parameters(), lr=4e-4, betas=betas),
+            'D2': optim.Adam(self.D2.parameters(), lr=4e-4, betas=betas)
         }
 
         self.schedulers = []
