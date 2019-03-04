@@ -3,7 +3,7 @@ import torch.nn.init as init
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import LambdaLR
 
 from networks.unet import UNet
 from networks.encoder import ResNetEncoder
@@ -43,7 +43,7 @@ class BicycleGAN:
 
         def weights_init(m):
             if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
-                init.kaiming_normal_(m.weight, a=0.2)
+                init.xavier_normal_(m.weight, gain=0.02)
                 if m.bias is not None:
                     init.zeros_(m.bias)
             elif isinstance(m, nn.InstanceNorm2d) and m.affine:
@@ -57,15 +57,20 @@ class BicycleGAN:
 
         betas = (0.5, 0.999)
         self.optimizer = {
-            'G': optim.Adam(self.G.parameters(), lr=2e-4, betas=betas),
-            'E': optim.Adam(self.E.parameters(), lr=2e-4, betas=betas),
+            'G': optim.Adam(self.G.parameters(), lr=4e-4, betas=betas),
+            'E': optim.Adam(self.E.parameters(), lr=4e-4, betas=betas),
             'D1': optim.Adam(self.D1.parameters(), lr=4e-4, betas=betas),
             'D2': optim.Adam(self.D2.parameters(), lr=4e-4, betas=betas)
         }
 
+        def lambda_rule(i):
+            decay = num_steps // 2
+            m = 1.0 if i < decay else 1.0 - (i - decay) / decay
+            return m
+
         self.schedulers = []
         for o in self.optimizer.values():
-            self.schedulers.append(CosineAnnealingLR(o, T_max=num_steps, eta_min=1e-7))
+            self.schedulers.append(LambdaLR(o, lr_lambda=lambda_rule))
 
         self.gan_loss = LSGAN()
         self.z_dimension = z_dimension
@@ -115,11 +120,11 @@ class BicycleGAN:
 
         # FOOL THE DISCRIMINATORS LOSSES
 
-        scores1 = self.D1(B_restored)
-        fool_d1_loss = self.gan_loss(scores1, True)
+        scores = self.D1(B_restored)
+        fool_d1_loss = self.gan_loss(scores, True)
 
-        scores2 = self.D2(B_generated)
-        fool_d2_loss = self.gan_loss(scores2, True)
+        scores = self.D2(B_generated)
+        fool_d2_loss = self.gan_loss(scores, True)
 
         # RECONSTRUCTION LOSS
 
@@ -178,7 +183,7 @@ class BicycleGAN:
         self.optimizer['D1'].step()
         self.optimizer['D2'].step()
 
-        # decay learning rate
+        # decay the learning rate
         for s in self.schedulers:
             s.step()
 

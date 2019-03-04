@@ -7,20 +7,6 @@ class UNet(nn.Module):
     def __init__(self, in_channels, out_channels, depth=64, downsample=6):
         super(UNet, self).__init__()
 
-        # NOISE TO STYLE MAPPING
-
-        z_dimension = 8
-        w_dimension = 128
-
-        self.mapping = nn.Sequential(
-            nn.Linear(z_dimension, 128),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(128, 128),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(128, w_dimension),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
-
         # START
 
         params = {
@@ -36,17 +22,30 @@ class UNet(nn.Module):
         # DOWNSAMPLE
 
         down_path = []
-        styles = []
+        num_features = 0  # number of weights for all adains
         for i in range(1, downsample):
 
             in_depth = min(2**(i - 1), 8) * depth
             out_depth = min(2**i, 8) * depth
 
             down_path.append(UNetBlock(in_depth, out_depth))
-            styles.append(nn.Linear(w_dimension, 2 * out_depth))
+            num_features += 2 * out_depth
 
         self.down_path = nn.ModuleList(down_path)
-        self.styles = nn.ModuleList(styles)
+
+        # NOISE TO STYLE MAPPING
+
+        z_dimension = 8
+
+        self.mapping = nn.Sequential(
+            nn.Linear(z_dimension, 256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(256, 256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(256, 256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(256, num_features)
+        )
 
         # UPSAMPLE
 
@@ -86,16 +85,20 @@ class UNet(nn.Module):
             a float tensor with shape [b, out_channels, h, w].
         """
 
-        w = self.mapping(z)
-        # it has shape [b, w_dimension]
+        weights = self.mapping(z).unsqueeze(2).unsqueeze(3)
+        # it has shape [b, num_features, 1, 1]
 
         x = 2.0 * x - 1.0
         x = self.beginning(x)
 
         outputs = [x]
         for i, b in enumerate(self.down_path, 2):
-            weights = self.styles[i - 2](w)
-            x = b(x, weights)  # it has stride 2**i
+
+            j = i - 2
+            d = 2 * b.adain.in_channels
+            w = weights[:, (d * j):(d * j + d)]
+
+            x = b(x, w)  # it has stride 2**i
             outputs.append(x)
 
         # now `x` has shape [b, 8 * depth, h/stride, w/stride],
@@ -119,23 +122,20 @@ class UNet(nn.Module):
 
 class AdaptiveInstanceNorm(nn.Module):
 
-    def __init__(self, in_channels):
+    def __init__(self, d):
         super(AdaptiveInstanceNorm, self).__init__()
-        self.normalize = nn.InstanceNorm2d(in_channels)
+        self.normalize = nn.InstanceNorm2d(d)
+        self.in_channels = d
 
     def forward(self, x, weights):
         """
         Arguments:
             x: a float tensor with shape [b, d, h, w].
-            weights: a long tensor with shape [b, 2 * d].
+            weights: a long tensor with shape [b, 2 * d, 1, 1].
         Returns:
             a float tensor with shape [b, d, h, w].
         """
-
         d = x.size(1)
-        weights = weights.unsqueeze(2).unsqueeze(3)
-        # it has shape [b, 2 * d, 1, 1]
-
         gamma, beta = torch.split(weights, [d, d], dim=1)
         return (gamma + 1.0) * self.normalize(x) + beta
 

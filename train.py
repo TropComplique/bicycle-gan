@@ -8,8 +8,8 @@ BATCH_SIZE = 4
 DATA = '/home/dan/datasets/edges2shoes/train/'
 NUM_EPOCHS = 60
 DEVICE = torch.device('cuda:0')
-MODEL_SAVE_PREFIX = 'models/run01'
-TRAIN_LOGS = 'losses_run01.json'
+MODEL_SAVE_PREFIX = 'models/run00'
+TRAIN_LOGS = 'losses_run00.json'
 SAVE_STEP = 10000
 
 
@@ -18,7 +18,7 @@ def main():
     dataset = PairsDataset(folder=DATA, size=256, is_training=True)
     data_loader = DataLoader(
         dataset=dataset, batch_size=BATCH_SIZE,
-        shuffle=True, num_workers=1,
+        shuffle=True, num_workers=4,
         pin_memory=True, drop_last=True
     )
     num_steps = len(dataset) // BATCH_SIZE
