@@ -91,12 +91,13 @@ class UNet(nn.Module):
         x = 2.0 * x - 1.0
         x = self.beginning(x)
 
+        s = 0  # start
         outputs = [x]
         for i, b in enumerate(self.down_path, 2):
 
-            j = i - 2
             d = 2 * b.adain.in_channels
-            w = weights[:, (d * j):(d * j + d)]
+            w = weights[:, s:(s + d)]
+            s += d
 
             x = b(x, w)  # it has stride 2**i
             outputs.append(x)

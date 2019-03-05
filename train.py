@@ -21,7 +21,7 @@ def main():
         shuffle=True, num_workers=4,
         pin_memory=True, drop_last=True
     )
-    num_steps = len(dataset) // BATCH_SIZE
+    num_steps = NUM_EPOCHS * (len(dataset) // BATCH_SIZE)
     model = BicycleGAN(device=DEVICE, num_steps=num_steps)
 
     logs = []

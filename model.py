@@ -66,7 +66,7 @@ class BicycleGAN:
         def lambda_rule(i):
             decay = num_steps // 2
             m = 1.0 if i < decay else 1.0 - (i - decay) / decay
-            return m
+            return max(m, 0.0)
 
         self.schedulers = []
         for o in self.optimizer.values():
