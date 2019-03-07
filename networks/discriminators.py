@@ -12,6 +12,7 @@ class MultiScaleDiscriminator(nn.Module):
 
         self.subnetwork1 = get_layers(in_channels, depth, downsample)
         self.subnetwork2 = get_layers(in_channels, depth // 2, downsample)
+        self.subnetwork3 = get_layers(in_channels, depth // 4, downsample)
         self.downsampler = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
 
     def forward(self, x):
@@ -28,6 +29,7 @@ class MultiScaleDiscriminator(nn.Module):
             scores1: a float tensor with shape [b, 1, h/s, w/s].
             scores2: a float tensor with shape [b, 1, (h/s)/2, (w/s)/2],
                 where s = 2**downsample.
+            scores3: a float tensor.
         """
 
         x = 2.0 * x - 1.0
@@ -36,7 +38,10 @@ class MultiScaleDiscriminator(nn.Module):
         x = self.downsampler(x)  # [b, in_channels, h/2, w/2]
         scores2 = self.subnetwork2(x)
 
-        return scores1, scores2
+        x = self.downsampler(x)  # [b, in_channels, h/4, w/4]
+        scores3 = self.subnetwork3(x)
+
+        return scores1, scores2, scores3
 
 
 class GlobalDiscriminator(nn.Module):
