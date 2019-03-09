@@ -55,12 +55,20 @@ class BicycleGAN:
         self.D1 = D1.apply(weights_init).to(device)
         self.D2 = D2.apply(weights_init).to(device)
 
-        betas = (0.5, 0.999)
+        params = {
+            'lr': 4e-4,
+            'betas': (0.5, 0.999),
+            'weight_decay': 1e-6
+        }
+        generator_groups = [
+            {'params': [p for n, p in self.G.named_parameters() if 'mapping' not in n]},
+            {'params': self.G.mapping.parameters(), 'lr': 4e-5}
+        ]
         self.optimizer = {
-            'G': optim.Adam(self.G.parameters(), lr=4e-4, betas=betas),
-            'E': optim.Adam(self.E.parameters(), lr=4e-4, betas=betas),
-            'D1': optim.Adam(self.D1.parameters(), lr=4e-4, betas=betas),
-            'D2': optim.Adam(self.D2.parameters(), lr=4e-4, betas=betas)
+            'G': optim.Adam(generator_groups, **params),
+            'E': optim.Adam(self.E.parameters(), **params),
+            'D1': optim.Adam(self.D1.parameters(), **params),
+            'D2': optim.Adam(self.D2.parameters(), **params)
         }
 
         def lambda_rule(i):
@@ -148,7 +156,7 @@ class BicycleGAN:
 
         # LATENT REGRESSION LOSS
 
-        lr_loss = F.l1_loss(mu, z)
+        lr_loss = 0.5 * F.l1_loss(mu, z)
 
         # UPDATE THE GENERATOR ONLY
 
