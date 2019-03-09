@@ -72,16 +72,14 @@ class UNet(nn.Module):
         Returns:
             a float tensor with shape [b, out_channels, h, w].
         """
+        x = 2.0 * x - 1.0
 
         weights = self.mapping(z).unsqueeze(2).unsqueeze(3)
         # it has shape [b, num_features, 1, 1]
 
-        x = 2.0 * x - 1.0
-        x = self.beginning(x)
-
         s = 0  # start
-        outputs = [x]
-        for i, b in enumerate(self.down_path, 2):
+        outputs = []
+        for i, b in enumerate(self.down_path, 1):
 
             d = 2 * b.adain.in_channels
             w = weights[:, s:(s + d)]
