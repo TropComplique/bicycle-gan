@@ -58,7 +58,7 @@ class BicycleGAN:
         params = {
             'lr': 4e-4,
             'betas': (0.5, 0.999),
-            'weight_decay': 1e-6
+            'weight_decay': 1e-7
         }
         generator_groups = [
             {'params': [p for n, p in self.G.named_parameters() if 'mapping' not in n]},

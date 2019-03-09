@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class MultiScaleDiscriminator(nn.Module):
@@ -12,8 +13,7 @@ class MultiScaleDiscriminator(nn.Module):
 
         self.subnetwork1 = get_layers(in_channels, depth, downsample)
         self.subnetwork2 = get_layers(in_channels, depth // 2, downsample)
-        self.subnetwork3 = get_layers(in_channels, depth // 4, downsample)
-        self.downsampler = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
+        self.subnetwork3 = get_layers(in_channels, depth // 2, downsample)
 
     def forward(self, x):
         """
@@ -31,78 +31,18 @@ class MultiScaleDiscriminator(nn.Module):
                 where s = 2**downsample.
             scores3: a float tensor.
         """
+        h, w = x.size()[2:]
 
         x = 2.0 * x - 1.0
         scores1 = self.subnetwork1(x)
 
-        x = self.downsampler(x)  # [b, in_channels, h/2, w/2]
+        x = F.interpolate(x, size=(h // 2, w // 2), mode='bilinear')
         scores2 = self.subnetwork2(x)
 
-        x = self.downsampler(x)  # [b, in_channels, h/4, w/4]
+        x = F.interpolate(x, size=(h // 4, w // 4), mode='bilinear')
         scores3 = self.subnetwork3(x)
 
         return scores1, scores2, scores3
-
-
-class GlobalDiscriminator(nn.Module):
-    """
-    This discriminator looks
-    on the entire input images.
-    """
-    def __init__(self, in_channels, depth=64, downsample=4):
-        super(GlobalDiscriminator, self).__init__()
-
-        self.layers = get_layers(in_channels, depth, downsample)
-        self.global_average_pooling = nn.AdaptiveAvgPool2d(1)
-
-        n = downsample - 1
-        out_channels = depth * min(2**n, 8)
-        self.fc = nn.Linear(out_channels, 1)
-
-    def forward(self, input):
-        """
-        I assume that h and w are
-        divisible by 2**downsample.
-
-        Arguments:
-            x: a float tensor with shape [b, in_channels, h, w].
-        Returns:
-            a float tensor with shape [b].
-        """
-        x = 2.0 * x - 1.0
-        x = self.layers(x)
-        x = self.global_average_pooling(x)
-        x = x.view(x.size(0), -1)
-        scores = self.fc(x).squeeze(1)
-        return scores
-
-
-class PixelDiscriminator(nn.Module):
-    """
-    This discriminator looks
-    only on pixel values.
-    """
-    def __init__(self, in_channels, depth=64):
-        super(PixelDiscriminator, self).__init__()
-
-        self.layers = nn.Sequential(
-            nn.Conv2d(in_channels, depth, kernel_size=1, bias=False),
-            nn.InstanceNorm2d(depth, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(depth, depth * 2, kernel_size=1, bias=False),
-            nn.InstanceNorm2d(depth * 2, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(depth * 2, 1, kernel_size=1)
-        )
-
-    def forward(self, x):
-        """
-        Arguments:
-            x: a float tensor with shape [b, in_channels, h, w].
-        Returns:
-            a float tensor with shape [b, 1, h, w].
-        """
-        return self.layers(x)
 
 
 def get_layers(in_channels, depth=64, downsample=3):
@@ -145,6 +85,7 @@ def get_layers(in_channels, depth=64, downsample=3):
 
     """
     Right now receptive field is
+    26 if downsample = 2,
     54 if downsample = 3,
     110 if downsample = 4,
     222 if downsample = 5.

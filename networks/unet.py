@@ -4,28 +4,16 @@ import torch.nn as nn
 
 class UNet(nn.Module):
 
-    def __init__(self, in_channels, out_channels, depth=64, downsample=6):
+    def __init__(self, in_channels, out_channels, depth=64, downsample=7):
         super(UNet, self).__init__()
-
-        # START
-
-        params = {
-            'kernel_size': 4, 'stride': 2,
-            'padding': 1, 'bias': False
-        }
-
-        self.beginning = nn.Sequential(
-            nn.Conv2d(in_channels, depth, **params),
-            nn.InstanceNorm2d(depth, affine=True)
-        )
 
         # DOWNSAMPLE
 
         down_path = []
         num_features = 0  # number of weights for all adains
-        for i in range(1, downsample):
+        for i in range(downsample):
 
-            in_depth = min(2**(i - 1), 8) * depth
+            in_depth = min(2**(i - 1), 8) * depth if i else in_channels
             out_depth = min(2**i, 8) * depth
 
             down_path.append(UNetBlock(in_depth, out_depth))
@@ -148,12 +136,12 @@ class UNetBlock(nn.Module):
 
         params = {
             'kernel_size': 4, 'stride': 2,
-            'padding': 1, 'bias': False
+            'padding': 1, 'bias': True
         }
 
         self.layers = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, **params),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(in_channels, out_channels, **params)
         )
         self.adain = AdaptiveInstanceNorm(out_channels)
 
@@ -170,13 +158,13 @@ class UNetUpsamplingBlock(nn.Module):
 
         params = {
             'kernel_size': 4, 'stride': 2,
-            'padding': 1, 'bias': False
+            'padding': 1, 'bias': True
         }
 
         self.layers = nn.Sequential(
-            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(in_channels, out_channels, **params),
-            nn.InstanceNorm2d(out_channels, affine=True)
+            nn.ReLU(inplace=True),
+            nn.InstanceNorm2d(out_channels)
         )
 
     def forward(self, x):

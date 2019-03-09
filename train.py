@@ -6,7 +6,7 @@ from model import BicycleGAN
 
 BATCH_SIZE = 4
 DATA = '/home/dan/datasets/edges2shoes/train/'
-NUM_EPOCHS = 60
+NUM_EPOCHS = 100
 DEVICE = torch.device('cuda:0')
 MODEL_SAVE_PREFIX = 'models/run00'
 TRAIN_LOGS = 'losses_run00.json'
