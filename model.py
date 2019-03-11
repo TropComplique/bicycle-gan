@@ -38,8 +38,10 @@ class BicycleGAN:
 
         G = UNet(a, b)
         E = ResNetEncoder(b, z_dimension)
-        D1 = MultiScaleDiscriminator(b)
-        D2 = MultiScaleDiscriminator(b)
+
+        # conditional discriminators
+        D1 = MultiScaleDiscriminator(a + b)
+        D2 = MultiScaleDiscriminator(a + b)
 
         def weights_init(m):
             if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
@@ -56,13 +58,13 @@ class BicycleGAN:
         self.D2 = D2.apply(weights_init).to(device)
 
         params = {
-            'lr': 4e-4,
+            'lr': 2e-4,
             'betas': (0.5, 0.999),
-            'weight_decay': 1e-7
+            'weight_decay': 1e-8
         }
         generator_groups = [
             {'params': [p for n, p in self.G.named_parameters() if 'mapping' not in n]},
-            {'params': self.G.mapping.parameters(), 'lr': 4e-5}
+            {'params': self.G.mapping.parameters(), 'lr': 2e-5}
         ]
         self.optimizer = {
             'G': optim.Adam(generator_groups, **params),
@@ -93,7 +95,7 @@ class BicycleGAN:
         with pixel values in [0, 1] range.
 
         Arguments:
-            A: a float tensor with shape [n, a, h, w].
+            A: a float tensor with shape [2 * n, a, h, w].
             B: a float tensor with shape [2 * n, b, h, w].
         Returns:
             a dict with float numbers.
@@ -101,7 +103,8 @@ class BicycleGAN:
         A = A.to(self.device)
         B = B.to(self.device)
 
-        n = A.size(0)  # batch size
+        n = A.size(0) // 2  # batch size
+        A, A_another = torch.split(A, [n, n], dim=0)
         B, B_another = torch.split(B, [n, n], dim=0)
 
         # ENCODE AND THEN SYNTHESIZE
@@ -128,10 +131,10 @@ class BicycleGAN:
 
         # FOOL THE DISCRIMINATORS LOSSES
 
-        scores = self.D1(B_restored)
+        scores = self.D1(B_restored, A)
         fool_d1_loss = self.gan_loss(scores, True)
 
-        scores = self.D2(B_generated)
+        scores = self.D2(B_generated, A)
         fool_d2_loss = self.gan_loss(scores, True)
 
         # RECONSTRUCTION LOSS
@@ -173,16 +176,16 @@ class BicycleGAN:
 
         d_loss = torch.tensor(0.0, device=self.device)
 
-        scores = self.D1(B_restored.detach())
+        scores = self.D1(B_restored.detach(), A)
         d_loss += self.gan_loss(scores, False)
 
-        scores = self.D2(B_generated.detach())
+        scores = self.D2(B_generated.detach(), A)
         d_loss += self.gan_loss(scores, False)
 
-        scores = self.D1(B)
+        scores = self.D1(B, A)
         d_loss += self.gan_loss(scores, True)
 
-        scores = self.D2(B_another)
+        scores = self.D2(B_another, A_another)
         d_loss += self.gan_loss(scores, True)
 
         self.optimizer['D1'].zero_grad()

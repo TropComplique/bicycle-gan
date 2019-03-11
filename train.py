@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 from input_pipeline import PairsDataset
 from model import BicycleGAN
 
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 DATA = '/home/dan/datasets/edges2shoes/train/'
 NUM_EPOCHS = 100
 DEVICE = torch.device('cuda:0')

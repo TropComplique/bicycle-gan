@@ -13,9 +13,8 @@ class MultiScaleDiscriminator(nn.Module):
 
         self.subnetwork1 = get_layers(in_channels, depth, downsample)
         self.subnetwork2 = get_layers(in_channels, depth // 2, downsample)
-        self.subnetwork3 = get_layers(in_channels, depth // 2, downsample)
 
-    def forward(self, x):
+    def forward(self, x, y):
         """
         I assume that h and w are
         divisible by 2**(downsample + 1).
@@ -24,13 +23,16 @@ class MultiScaleDiscriminator(nn.Module):
         images with pixel values in [0, 1] range.
 
         Arguments:
-            x: a float tensor with shape [b, in_channels, h, w].
+            x: a float tensor with shape [b, p, h, w].
+            y: a float tensor with shape [b, q, h, w],
+                where p + q = in_channels.
         Returns:
             scores1: a float tensor with shape [b, 1, h/s, w/s].
             scores2: a float tensor with shape [b, 1, (h/s)/2, (w/s)/2],
                 where s = 2**downsample.
-            scores3: a float tensor.
         """
+
+        x = torch.cat([x, y], dim=1)
         h, w = x.size()[2:]
 
         x = 2.0 * x - 1.0
@@ -39,10 +41,7 @@ class MultiScaleDiscriminator(nn.Module):
         x = F.interpolate(x, size=(h // 2, w // 2), mode='bilinear')
         scores2 = self.subnetwork2(x)
 
-        x = F.interpolate(x, size=(h // 4, w // 4), mode='bilinear')
-        scores3 = self.subnetwork3(x)
-
-        return scores1, scores2, scores3
+        return scores1, scores2
 
 
 def get_layers(in_channels, depth=64, downsample=3):
@@ -54,10 +53,20 @@ def get_layers(in_channels, depth=64, downsample=3):
 
     params = {
         'kernel_size': 4, 'stride': 2,
-        'padding': 1, 'bias': False
+        'padding': 1, 'bias': True
     }
 
-    for n in range(downsample):
+    in_channels = out_channels
+    out_channels = depth
+
+    # no normalization, but why?
+    sequence.extend([
+        nn.Conv2d(in_channels, out_channels, **params),
+        nn.LeakyReLU(0.2, inplace=True)
+    ])
+    params['bias'] = False
+
+    for n in range(1, downsample):
 
         in_channels = out_channels
         out_channels = depth * min(2**n, 8)
