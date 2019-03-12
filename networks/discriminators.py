@@ -46,24 +46,19 @@ class MultiScaleDiscriminator(nn.Module):
 
 def get_layers(in_channels, depth=64, downsample=3):
     """
-    This set of layers downsamples in `2**downsample` times.
+    This set of layers reduces image size in `2**downsample` times.
     """
-    out_channels = in_channels
-    sequence = []
 
     params = {
         'kernel_size': 4, 'stride': 2,
         'padding': 1, 'bias': True
     }
 
-    in_channels = out_channels
     out_channels = depth
-
-    # no normalization, but why?
-    sequence.extend([
+    sequence = [
         nn.Conv2d(in_channels, out_channels, **params),
-        nn.LeakyReLU(0.2, inplace=True)
-    ])
+        nn.LeakyReLU(0.2, inplace=True)  # no normalization, but why?
+    ]
     params['bias'] = False
 
     for n in range(1, downsample):

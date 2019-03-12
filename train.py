@@ -10,7 +10,7 @@ NUM_EPOCHS = 100
 DEVICE = torch.device('cuda:0')
 MODEL_SAVE_PREFIX = 'models/run00'
 TRAIN_LOGS = 'losses_run00.json'
-SAVE_STEP = 10000
+SAVE_STEP = 30000
 
 
 def main():
@@ -32,9 +32,6 @@ def main():
 
     for e in range(NUM_EPOCHS):
         for A, B in data_loader:
-
-            half = BATCH_SIZE // 2
-            A = A[:half]
 
             i += 1
             losses = model.train_step(A, B)
