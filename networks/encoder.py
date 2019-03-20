@@ -4,7 +4,7 @@ import torch.nn as nn
 
 class ResNetEncoder(nn.Module):
 
-    def __init__(self, in_channels, out_dimension, depth=64, num_blocks=4):
+    def __init__(self, in_channels, out_dimension, depth=64, num_blocks=5):
         """
         Arguments:
             in_channels: an integer.

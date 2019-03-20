@@ -118,7 +118,7 @@ class AdaptiveInstanceNorm(nn.Module):
         """
         Arguments:
             x: a float tensor with shape [b, d, h, w].
-            weights: a long tensor with shape [b, 2 * d, 1, 1].
+            weights: a float tensor with shape [b, 2 * d, 1, 1].
         Returns:
             a float tensor with shape [b, d, h, w].
         """

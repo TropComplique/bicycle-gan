@@ -5,7 +5,7 @@ from .unet import AdaptiveInstanceNorm
 
 class ResnetGenerator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, depth=32, downsample=3, num_blocks=6):
+    def __init__(self, in_channels, out_channels, depth=32, downsample=3, num_blocks=3):
         """
         Arguments:
             in_channels: an integer.
@@ -30,12 +30,13 @@ class ResnetGenerator(nn.Module):
 
         params = {
             'kernel_size': 3, 'stride': 2,
-            'padding': 1, 'bias': False
+            'padding': 0, 'bias': False
         }
 
         for i in range(downsample):
             m = 2**i  # multiplier
             down_path.append(nn.Sequential(
+                nn.ReflectionPad2d(1),
                 nn.Conv2d(depth * m, depth * m * 2, **params),
                 nn.InstanceNorm2d(depth * m * 2, affine=True),
                 nn.ReLU(inplace=True)
@@ -43,41 +44,48 @@ class ResnetGenerator(nn.Module):
 
         # MIDDLE BLOCKS
 
+        # number of weights used by adains
+        num_features = 0
+
         blocks = []
         m = 2**downsample
 
         for _ in range(num_blocks):
             blocks.append(ResnetBlock(depth * m))
+            num_features += 4 * depth * m
 
         # UPSAMPLING
 
         params = {
             'kernel_size': 3, 'stride': 2,
-            'padding': 1, 'bias': False
+            'padding': 1, 'bias': False,
             'output_padding': 1
         }
         up_path = []
 
         for i in range(downsample):
+
             m = 2**(downsample - 1 - i)
-            up_path.append(nn.Sequential(
-                nn.ConvTranspose2d(depth * m * 2, depth * m, **params),
-                nn.InstanceNorm2d(depth * m, affine=True),
+            k = 1 if i == 0 else 2
+
+            up_path.append(nn.ModuleList([
+                nn.ConvTranspose2d(depth * m * 2 * k, depth * m, **params),
+                AdaptiveInstanceNorm(depth * m),
                 nn.ReLU(inplace=True)
-            ))
+            ]))
+            num_features += 2 * depth * m
 
         # END
 
-        up_path.extend([
+        up_path.append(nn.Sequential(
             nn.ReflectionPad2d(3),
-            nn.Conv2d(depth, out_channels, kernel_size=7),
+            nn.Conv2d(2 * depth, out_channels, kernel_size=7),
             nn.Tanh()
-        ])
+        ))
 
         # NOISE TO STYLE MAPPING
 
         z_dimension = 8
-        num_features = num_blocks * 4 * depth * (2**downsample)
 
         self.mapping = nn.Sequential(
             nn.Linear(z_dimension, 256),
@@ -124,11 +132,25 @@ class ResnetGenerator(nn.Module):
 
             w = weights[:, s:(s + d)]
             s += d
-
             x = m(x, w)
 
         for i, m in enumerate(self.up_path, 1):
-            x = m(x)
+
+            if i > 1:
+                y = outputs[-i]
+                x = torch.cat([x, y], dim=1)
+
+            if i == len(outputs):
+                x = m(x)
+                continue
+
+            d = 2 * m[1].in_channels
+            w = weights[:, s:(s + d)]
+            s += d
+
+            x = m[0](x)
+            x = m[1](x, w)
+            x = m[2](x)
 
         return 0.5 * x + 0.5
 
@@ -138,7 +160,7 @@ class ResnetBlock(nn.Module):
     def __init__(self, d):
         super(ResnetBlock, self).__init__()
 
-        self.layers = nn.Sequential(
+        self.layers = nn.ModuleList([
             nn.ReflectionPad2d(1),
             nn.Conv2d(d, d, kernel_size=3, bias=False),
             AdaptiveInstanceNorm(d),
@@ -146,20 +168,25 @@ class ResnetBlock(nn.Module):
             nn.ReflectionPad2d(1),
             nn.Conv2d(d, d, kernel_size=3, bias=False),
             AdaptiveInstanceNorm(d)
-        )
+        ])
 
     def forward(self, x, w):
         """
         Arguments:
             x: a float tensor with shape [b, d, h, w].
-            weights: a long tensor with shape [b, 4 * d, 1, 1].
+            w: a float tensor with shape [b, 4 * d, 1, 1].
         Returns:
             a float tensor with shape [b, d, h, w].
         """
         d = x.size(1)
         w1, w2 = torch.split(w, [2 * d, 2 * d], dim=1)
 
-        y = self.layers[:2](x)
-        y = self.layers[2:6](y, w1)
+        y = self.layers[0](x)
+        y = self.layers[1](y)
+        y = self.layers[2](y, w1)
+        y = self.layers[3](y)
+        y = self.layers[4](y)
+        y = self.layers[5](y)
         y = self.layers[6](y, w2)
+
         return x + y
