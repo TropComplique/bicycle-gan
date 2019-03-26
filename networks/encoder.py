@@ -15,7 +15,8 @@ class ResNetEncoder(nn.Module):
         super(ResNetEncoder, self).__init__()
 
         layers = [
-            nn.Conv2d(in_channels, depth, kernel_size=3, stride=2, padding=1)
+            nn.Conv2d(in_channels, depth, kernel_size=4, stride=2, padding=1),
+            nn.LeakyReLU(0.2, inplace=True),
         ]
 
         for n in range(1, num_blocks + 1):
@@ -68,7 +69,7 @@ class BasicBlock(nn.Module):
             nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, bias=False),
             nn.InstanceNorm2d(in_channels, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.AvgPool2d(kernel_size=2, stride=2)
         )
 

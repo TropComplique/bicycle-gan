@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
-from .unet import AdaptiveInstanceNorm
+import torch.nn.functional as F
 
 
-class ResnetGenerator(nn.Module):
+class Generator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, depth=32, downsample=3, num_blocks=3):
+    def __init__(self, in_channels, out_channels, depth=64, downsample=3, num_blocks=9):
         """
         Arguments:
             in_channels: an integer.
@@ -16,7 +16,7 @@ class ResnetGenerator(nn.Module):
                 before applying resnet blocks.
             num_blocks: an integer, number of resnet blocks.
         """
-        super(ResnetGenerator, self).__init__()
+        super(Generator, self).__init__()
 
         # DOWNSAMPLING
 
@@ -44,15 +44,16 @@ class ResnetGenerator(nn.Module):
 
         # MIDDLE BLOCKS
 
-        # number of weights used by adains
-        num_features = 0
+        num_weights = 0
+        # number of weights (gammas and betas)
+        # needed for all adain layers
 
         blocks = []
         m = 2**downsample
 
         for _ in range(num_blocks):
             blocks.append(ResnetBlock(depth * m))
-            num_features += 4 * depth * m
+            num_weights += 4 * depth * m
 
         # UPSAMPLING
 
@@ -66,22 +67,16 @@ class ResnetGenerator(nn.Module):
         for i in range(downsample):
 
             m = 2**(downsample - 1 - i)
-            k = 1 if i == 0 else 2
-
-            up_path.append(nn.ModuleList([
-                nn.ConvTranspose2d(depth * m * 2 * k, depth * m, **params),
-                AdaptiveInstanceNorm(depth * m),
-                nn.ReLU(inplace=True)
-            ]))
-            num_features += 2 * depth * m
+            up_path.append(Upsample(depth * m * 2))
+            num_weights += 2 * depth * m
 
         # END
 
-        up_path.append(nn.Sequential(
+        self.end = nn.Sequential(
             nn.ReflectionPad2d(3),
-            nn.Conv2d(2 * depth, out_channels, kernel_size=7),
+            nn.Conv2d(depth, out_channels, kernel_size=7),
             nn.Tanh()
-        ))
+        )
 
         # NOISE TO STYLE MAPPING
 
@@ -94,10 +89,10 @@ class ResnetGenerator(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(256, 256),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, num_features)
+            nn.Linear(256, num_weights)
         )
 
-        self.down_path = nn.ModuleList(down_path)
+        self.down_path = nn.Sequential(*down_path)
         self.blocks = nn.ModuleList(blocks)
         self.up_path = nn.ModuleList(up_path)
 
@@ -115,15 +110,12 @@ class ResnetGenerator(nn.Module):
         Returns:
             a float tensor with shape [b, out_channels, h, w].
         """
-        x = 2.0 * x - 1.0
 
         weights = self.mapping(z).unsqueeze(2).unsqueeze(3)
-        # it has shape [b, num_features, 1, 1]
+        # it has shape [b, num_weights, 1, 1]
 
-        outputs = []
-        for m in self.down_path:
-            x = m(x)
-            outputs.append(x)
+        x = 2.0 * x - 1.0
+        x = self.down_path(x)
 
         s = 0  # start
         d = 4 * x.size(1)
@@ -134,25 +126,48 @@ class ResnetGenerator(nn.Module):
             s += d
             x = m(x, w)
 
-        for i, m in enumerate(self.up_path, 1):
+        for m in self.up_path:
 
-            if i > 1:
-                y = outputs[-i]
-                x = torch.cat([x, y], dim=1)
-
-            if i == len(outputs):
-                x = m(x)
-                continue
-
-            d = 2 * m[1].in_channels
+            d = x.size(1)
             w = weights[:, s:(s + d)]
             s += d
+            x = m(x, w)
 
-            x = m[0](x)
-            x = m[1](x, w)
-            x = m[2](x)
-
+        x = self.end(x)
         return 0.5 * x + 0.5
+
+
+class Upsample(nn.Module):
+
+    def __init__(self, d):
+        super(Upsample, self).__init__()
+
+        params = {
+            'kernel_size': 3, 'stride': 2,
+            'padding': 1, 'bias': False,
+            'output_padding': 1
+        }
+
+        self.conv = nn.ConvTranspose2d(d, d // 2, **params)
+        self.adain = AdaptiveInstanceNorm(d // 2)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x, w):
+        """
+        Arguments:
+            x: a float tensor with shape [b, d, h, w].
+            w: a float tensor with shape [b, d, 1, 1].
+        Returns:
+            a float tensor with shape [b, d // 2, 2 * h, 2 * w].
+        """
+        half_d = x.size(1) // 2
+        gamma, beta = torch.split(w, [half_d, half_d], dim=1)
+
+        x = self.conv(x)
+        x = self.adain(x, gamma, beta)
+        x = self.relu(x)
+
+        return x
 
 
 class ResnetBlock(nn.Module):
@@ -160,15 +175,14 @@ class ResnetBlock(nn.Module):
     def __init__(self, d):
         super(ResnetBlock, self).__init__()
 
-        self.layers = nn.ModuleList([
-            nn.ReflectionPad2d(1),
-            nn.Conv2d(d, d, kernel_size=3, bias=False),
-            AdaptiveInstanceNorm(d),
-            nn.ReLU(inplace=True),
-            nn.ReflectionPad2d(1),
-            nn.Conv2d(d, d, kernel_size=3, bias=False),
-            AdaptiveInstanceNorm(d)
-        ])
+        self.pad1 = nn.ReflectionPad2d(1)
+        self.conv1 = nn.Conv2d(d, d, kernel_size=3, bias=False)
+        self.adain1 = AdaptiveInstanceNorm(d)
+        self.relu1 = nn.ReLU(inplace=True)
+
+        self.pad2 = nn.ReflectionPad2d(1)
+        self.conv2 = nn.Conv2d(d, d, kernel_size=3, bias=False)
+        self.adain2 = AdaptiveInstanceNorm(d)
 
     def forward(self, x, w):
         """
@@ -178,15 +192,36 @@ class ResnetBlock(nn.Module):
         Returns:
             a float tensor with shape [b, d, h, w].
         """
-        d = x.size(1)
-        w1, w2 = torch.split(w, [2 * d, 2 * d], dim=1)
 
-        y = self.layers[0](x)
-        y = self.layers[1](y)
-        y = self.layers[2](y, w1)
-        y = self.layers[3](y)
-        y = self.layers[4](y)
-        y = self.layers[5](y)
-        y = self.layers[6](y, w2)
+        d = x.size(1)
+        split = torch.split(w, [d, d, d, d], dim=1)
+        gamma1, beta1, gamma2, beta2 = split
+
+        y = self.pad1(x)
+        y = self.conv1(y)
+        y = self.adain1(y, gamma1, beta1)
+        y = self.relu1(y)
+
+        y = self.pad2(y)
+        y = self.conv2(y)
+        y = self.adain2(y, gamma2, beta2)
 
         return x + y
+
+
+class AdaptiveInstanceNorm(nn.Module):
+
+    def __init__(self, d):
+        super(AdaptiveInstanceNorm, self).__init__()
+        self.normalize = nn.InstanceNorm2d(d)
+        self.in_channels = d
+
+    def forward(self, x, gamma, beta):
+        """
+        Arguments:
+            x: a float tensor with shape [b, d, h, w].
+            gamma, beta: float tensors with shape [b, d, 1, 1].
+        Returns:
+            a float tensor with shape [b, d, h, w].
+        """
+        return (gamma + 1.0) * self.normalize(x) + beta
