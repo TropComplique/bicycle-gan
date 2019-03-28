@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class Generator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, depth=64, downsample=3, num_blocks=9):
+    def __init__(self, in_channels, out_channels, depth=64, downsample=4, num_blocks=9):
         """
         Arguments:
             in_channels: an integer.
@@ -57,15 +57,8 @@ class Generator(nn.Module):
 
         # UPSAMPLING
 
-        params = {
-            'kernel_size': 3, 'stride': 2,
-            'padding': 1, 'bias': False,
-            'output_padding': 1
-        }
         up_path = []
-
         for i in range(downsample):
-
             m = 2**(downsample - 1 - i)
             up_path.append(Upsample(depth * m * 2))
             num_weights += 2 * depth * m
@@ -143,12 +136,12 @@ class Upsample(nn.Module):
         super(Upsample, self).__init__()
 
         params = {
-            'kernel_size': 3, 'stride': 2,
-            'padding': 1, 'bias': False,
-            'output_padding': 1
+            'kernel_size': 3, 'stride': 1,
+            'padding': 0, 'bias': False
         }
 
-        self.conv = nn.ConvTranspose2d(d, d // 2, **params)
+        self.pad = nn.ReflectionPad2d(1)
+        self.conv = nn.Conv2d(d, d // 2, **params)
         self.adain = AdaptiveInstanceNorm(d // 2)
         self.relu = nn.ReLU(inplace=True)
 
@@ -163,8 +156,10 @@ class Upsample(nn.Module):
         half_d = x.size(1) // 2
         gamma, beta = torch.split(w, [half_d, half_d], dim=1)
 
+        x = F.interpolate(x, scale_factor=2, mode='bilinear')
+        x = self.pad(x)
         x = self.conv(x)
-        x = self.adain(x, gamma, beta)
+        x = self.adain(x, gamma + 1.0, beta)
         x = self.relu(x)
 
         return x
@@ -224,4 +219,4 @@ class AdaptiveInstanceNorm(nn.Module):
         Returns:
             a float tensor with shape [b, d, h, w].
         """
-        return (gamma + 1.0) * self.normalize(x) + beta
+        return gamma * self.normalize(x) + beta

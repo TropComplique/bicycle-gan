@@ -13,11 +13,11 @@ from networks.encoder import ResNetEncoder
 
 BATCH_SIZE = 8
 DATA = '/home/dan/datasets/edges2shoes/train/'
-NUM_EPOCHS = 100
+NUM_EPOCHS = 50
 DEVICE = torch.device('cuda:0')
-MODEL_SAVE_PREFIX = 'models/run00'
-TRAIN_LOGS = 'losses_run00.json'
-SAVE_STEP = 30000
+MODEL_SAVE_PREFIX = 'models/run00_just_ae'
+TRAIN_LOGS = 'losses_run00_just_ae.json'
+SAVE_STEP = 20000
 
 
 class AE:
@@ -41,6 +41,7 @@ class AE:
 
         self.G = G.apply(weights_init).to(device)
         self.E = E.apply(weights_init).to(device)
+        self.device = device
 
         params = {
             'lr': 8e-4,
