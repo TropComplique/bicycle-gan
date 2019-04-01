@@ -18,35 +18,28 @@ class Generator(nn.Module):
         """
         super(Generator, self).__init__()
 
-        # DOWNSAMPLING
+        # BEGINNING
 
-        down_path = []
-        down_path.append(nn.Sequential(
+        self.start = nn.Sequential(
             nn.ReflectionPad2d(3),
             nn.Conv2d(in_channels, depth, kernel_size=7, bias=False),
             nn.InstanceNorm2d(depth, affine=True),
             nn.ReLU(inplace=True)
-        ))
+        )
 
-        params = {
-            'kernel_size': 3, 'stride': 2,
-            'padding': 0, 'bias': False
-        }
-
-        for i in range(downsample):
-            m = 2**i  # multiplier
-            down_path.append(nn.Sequential(
-                nn.ReflectionPad2d(1),
-                nn.Conv2d(depth * m, depth * m * 2, **params),
-                nn.InstanceNorm2d(depth * m * 2, affine=True),
-                nn.ReLU(inplace=True)
-            ))
-
-        # MIDDLE BLOCKS
+        # DOWNSAMPLING
 
         num_weights = 0
         # number of weights (gammas and betas)
         # needed for all adain layers
+
+        down_path = []
+        for i in range(downsample):
+            m = 2**i  # multiplier
+            down_path.append(Downsample(depth * m))
+            num_weights += 4 * depth * m
+
+        # MIDDLE BLOCKS
 
         blocks = []
         m = 2**downsample
@@ -85,7 +78,7 @@ class Generator(nn.Module):
             nn.Linear(256, num_weights)
         )
 
-        self.down_path = nn.Sequential(*down_path)
+        self.down_path = nn.ModuleList(*down_path)
         self.blocks = nn.ModuleList(blocks)
         self.up_path = nn.ModuleList(up_path)
 
@@ -108,13 +101,21 @@ class Generator(nn.Module):
         # it has shape [b, num_weights, 1, 1]
 
         x = 2.0 * x - 1.0
-        x = self.down_path(x)
+        x = self.start(x)
 
-        s = 0  # start
-        d = 4 * x.size(1)
+        # start
+        s = 0
+
+        for m in self.down_path:
+
+            d = 4 * x.size(1)
+            w = weights[:, s:(s + d)]
+            s += d
+            x = m(x, w)
 
         for m in self.blocks:
 
+            d = 4 * x.size(1)
             w = weights[:, s:(s + d)]
             s += d
             x = m(x, w)
@@ -128,6 +129,40 @@ class Generator(nn.Module):
 
         x = self.end(x)
         return 0.5 * x + 0.5
+
+
+class Downsample(nn.Module):
+
+    def __init__(self, d):
+        super(Downsample, self).__init__()
+
+        params = {
+            'kernel_size': 3, 'stride': 2,
+            'padding': 0, 'bias': False
+        }
+
+        self.pad = nn.ReflectionPad2d(1)
+        self.conv = nn.Conv2d(d, 2 * d, **params)
+        self.adain = AdaptiveInstanceNorm(2 * d)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x, w):
+        """
+        Arguments:
+            x: a float tensor with shape [b, d, h, w].
+            w: a float tensor with shape [b, 4 * d, 1, 1].
+        Returns:
+            a float tensor with shape [b, 2 * d, h // 2, w // 2].
+        """
+        twice_d = 2 * x.size(1)
+        gamma, beta = torch.split(w, [twice_d, twice_d], dim=1)
+
+        x = self.pad(x)
+        x = self.conv(x)
+        x = self.adain(x, gamma + 1.0, beta)
+        x = self.relu(x)
+
+        return x
 
 
 class Upsample(nn.Module):

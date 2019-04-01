@@ -80,13 +80,23 @@ class AE:
         A = A.to(self.device)
         B = B.to(self.device)
 
-        z, _ = self.E(B)
-        B_restored = self.G(A, z)  # shape [n, b, h, w]
+        # batch size
+        n = A.size(0)
+
+        mean, logvar = self.E(B)
+        std = logvar.mul(0.5).exp()
+        z = torch.randn(n, 8, device=self.device)
+        # they all have shape [n, z_dimension]
+
+        B_restored = self.G(A, mean + z * std)  # shape [n, b, h, w]
         l1_loss = F.l1_loss(B_restored, B)
+
+        kl_loss = 0.5 * (logvar.exp() + mean.pow(2) - 1.0 - logvar).sum(1).mean(0)
+        total_loss = l1_loss + 1e-3 * kl_loss
 
         self.optimizer['G'].zero_grad()
         self.optimizer['E'].zero_grad()
-        l1_loss.backward()
+        total_loss.backward()
         self.optimizer['G'].step()
         self.optimizer['E'].step()
 
@@ -95,7 +105,8 @@ class AE:
             s.step()
 
         loss_dict = {
-            'l1_loss': l1_loss.item()
+            'l1_loss': l1_loss.item(),
+            'kl_loss': kl_loss.item()
         }
         return loss_dict
 
@@ -117,7 +128,7 @@ def main():
 
     logs = []
     i = 0  # number of weight updates
-    text = 'e: {0}, i: {1}, loss: {2:.5f}'
+    text = 'e: {0}, i: {1}, l1_loss: {2:.5f}, kl_loss: {3:.6f}'
 
     for e in range(NUM_EPOCHS):
         for A, B in data_loader:
@@ -125,7 +136,7 @@ def main():
             i += 1
             losses = model.train_step(A, B)
 
-            log = text.format(e, i, losses['l1_loss'])
+            log = text.format(e, i, losses['l1_loss'], losses['kl_loss'])
             print(log)
             logs.append(losses)
 

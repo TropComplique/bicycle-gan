@@ -15,18 +15,27 @@ class LSGAN(nn.Module):
     def __init__(self):
         super(LSGAN, self).__init__()
 
-    def forward(self, scores, is_real):
+    def forward(self, scores, is_real, mask):
         """
         Arguments:
-            scores: a tuple of float tensors with any shape.
+            scores: a tuple of float tensors
+                with any shape (something like [n, 1, h, w]).
             is_real: a boolean.
+            mask: a float tensor with shape [n, h, w]
         Returns:
             a float tensor with shape [].
         """
-        if is_real:
-            return sum(torch.pow(x - 1.0, 2).mean() for x in scores)
 
-        return sum(torch.pow(x, 2).mean() for x in scores)
+        masks = []
+        for x in scores:
+            h, w = x.size()[2:]
+            resized = F.interpolate(mask, size=(h, w), mode='bilinear')
+            masks.append(resized)
+
+        if is_real:
+            return sum(torch.pow(m * (x - 1.0), 2).mean() for x, m in zip(scores, masks))
+
+        return sum(torch.pow(m * x, 2).mean() for x, m in zip(scores, masks))
 
 
 class BicycleGAN:
@@ -129,13 +138,19 @@ class BicycleGAN:
         for p in self.D2.parameters():
             p.requires_grad = False
 
+        # CREATE MASKS
+
+        M = A[:, 1]
+        M_another = A_another[:, 1]
+        # they are binary masks with shape [n, h, w]
+
         # FOOL THE DISCRIMINATORS LOSSES
 
         scores = self.D1(B_restored, A)
-        fool_d1_loss = self.gan_loss(scores, True)
+        fool_d1_loss = self.gan_loss(scores, True, M)
 
         scores = self.D2(B_generated, A)
-        fool_d2_loss = self.gan_loss(scores, True)
+        fool_d2_loss = self.gan_loss(scores, True, M)
 
         # RECONSTRUCTION LOSS
 
@@ -177,16 +192,16 @@ class BicycleGAN:
         d_loss = torch.tensor(0.0, device=self.device)
 
         scores = self.D1(B_restored.detach(), A)
-        d_loss += self.gan_loss(scores, False)
+        d_loss += self.gan_loss(scores, False, M)
 
         scores = self.D2(B_generated.detach(), A)
-        d_loss += self.gan_loss(scores, False)
+        d_loss += self.gan_loss(scores, False, M)
 
         scores = self.D1(B, A)
-        d_loss += self.gan_loss(scores, True)
+        d_loss += self.gan_loss(scores, True, M)
 
         scores = self.D2(B_another, A_another)
-        d_loss += self.gan_loss(scores, True)
+        d_loss += self.gan_loss(scores, True, M_another)
 
         self.optimizer['D1'].zero_grad()
         self.optimizer['D2'].zero_grad()
