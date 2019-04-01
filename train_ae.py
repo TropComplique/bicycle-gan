@@ -92,7 +92,7 @@ class AE:
         l1_loss = F.l1_loss(B_restored, B)
 
         kl_loss = 0.5 * (logvar.exp() + mean.pow(2) - 1.0 - logvar).sum(1).mean(0)
-        total_loss = l1_loss + 1e-3 * kl_loss
+        total_loss = l1_loss + 5e-3 * kl_loss
 
         self.optimizer['G'].zero_grad()
         self.optimizer['E'].zero_grad()

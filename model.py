@@ -49,8 +49,8 @@ class BicycleGAN:
         E = ResNetEncoder(b, z_dimension)
 
         # conditional discriminators
-        D1 = MultiScaleDiscriminator(a + b)
-        D2 = MultiScaleDiscriminator(a + b)
+        D1 = MultiScaleDiscriminator(a + b - 1)
+        D2 = MultiScaleDiscriminator(a + b - 1)
 
         def weights_init(m):
             if isinstance(m, (nn.Conv2d, nn.Linear)):
@@ -144,12 +144,15 @@ class BicycleGAN:
         M_another = A_another[:, 1].unsqueeze(1)
         # they are binary masks with shape [n, 1, h, w]
 
+        edges = A[:, 0].unsqueeze(1)
+        edges_another = A_another[:, 0].unsqueeze(1)
+
         # FOOL THE DISCRIMINATORS LOSSES
 
-        scores = self.D1(B_restored, A)
+        scores = self.D1(B_restored, edges)
         fool_d1_loss = self.gan_loss(scores, True, M)
 
-        scores = self.D2(B_generated, A)
+        scores = self.D2(B_generated, edges)
         fool_d2_loss = self.gan_loss(scores, True, M)
 
         # RECONSTRUCTION LOSS
@@ -191,16 +194,16 @@ class BicycleGAN:
 
         d_loss = torch.tensor(0.0, device=self.device)
 
-        scores = self.D1(B_restored.detach(), A)
+        scores = self.D1(B_restored.detach(), edges)
         d_loss += self.gan_loss(scores, False, M)
 
-        scores = self.D2(B_generated.detach(), A)
+        scores = self.D2(B_generated.detach(), edges)
         d_loss += self.gan_loss(scores, False, M)
 
-        scores = self.D1(B, A)
+        scores = self.D1(B, edges)
         d_loss += self.gan_loss(scores, True, M)
 
-        scores = self.D2(B_another, A_another)
+        scores = self.D2(B_another, edges_another)
         d_loss += self.gan_loss(scores, True, M_another)
 
         self.optimizer['D1'].zero_grad()
