@@ -25,13 +25,13 @@ class AE:
     def __init__(self, device, num_steps, z_dimension=8):
 
         # in and out channels for the generator:
-        a, b = 1, 3
+        a, b = 2, 3
 
         G = Generator(a, b)
         E = ResNetEncoder(b, z_dimension)
 
         def weights_init(m):
-            if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 init.xavier_normal_(m.weight, gain=0.02)
                 if m.bias is not None:
                     init.zeros_(m.bias)
@@ -44,13 +44,13 @@ class AE:
         self.device = device
 
         params = {
-            'lr': 8e-4,
+            'lr': 1e-3,
             'betas': (0.5, 0.999),
             'weight_decay': 1e-8
         }
         generator_groups = [
             {'params': [p for n, p in self.G.named_parameters() if 'mapping' not in n]},
-            {'params': self.G.mapping.parameters(), 'lr': 8e-5}
+            {'params': self.G.mapping.parameters(), 'lr': 1e-4}
         ]
         self.optimizer = {
             'G': optim.Adam(generator_groups, **params),

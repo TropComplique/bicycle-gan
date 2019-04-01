@@ -6,10 +6,10 @@ from model import BicycleGAN
 
 BATCH_SIZE = 2
 DATA = '/home/dan/datasets/edges2shoes/train/'
-NUM_EPOCHS = 100
+NUM_EPOCHS = 60
 DEVICE = torch.device('cuda:0')
-MODEL_SAVE_PREFIX = 'models/run00'
-TRAIN_LOGS = 'losses_run00.json'
+MODEL_SAVE_PREFIX = 'models/run01'
+TRAIN_LOGS = 'losses_run01.json'
 SAVE_STEP = 30000
 
 
@@ -23,6 +23,8 @@ def main():
     )
     num_steps = NUM_EPOCHS * (len(dataset) // BATCH_SIZE)
     model = BicycleGAN(device=DEVICE, num_steps=num_steps)
+    model.G.load_state_dict(torch.load('models/run00_just_ae_generator.pth'))
+    model.E.load_state_dict(torch.load('models/run00_just_ae_encoder.pth'))
 
     logs = []
     i = 0  # number of weight updates

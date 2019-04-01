@@ -5,7 +5,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import LambdaLR
 
-from networks.unet import UNet
+from networks.generator import Generator
 from networks.encoder import ResNetEncoder
 from networks.discriminators import MultiScaleDiscriminator
 
@@ -34,9 +34,9 @@ class BicycleGAN:
     def __init__(self, device, num_steps, z_dimension=8):
 
         # in and out channels for the generator:
-        a, b = 1, 3
+        a, b = 2, 3
 
-        G = UNet(a, b)
+        G = Generator(a, b)
         E = ResNetEncoder(b, z_dimension)
 
         # conditional discriminators
@@ -44,7 +44,7 @@ class BicycleGAN:
         D2 = MultiScaleDiscriminator(a + b)
 
         def weights_init(m):
-            if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 init.xavier_normal_(m.weight, gain=0.02)
                 if m.bias is not None:
                     init.zeros_(m.bias)

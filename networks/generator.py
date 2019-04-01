@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class Generator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, depth=64, downsample=4, num_blocks=9):
+    def __init__(self, in_channels, out_channels, depth=32, downsample=4, num_blocks=4):
         """
         Arguments:
             in_channels: an integer.
@@ -156,7 +156,7 @@ class Upsample(nn.Module):
         half_d = x.size(1) // 2
         gamma, beta = torch.split(w, [half_d, half_d], dim=1)
 
-        x = F.interpolate(x, scale_factor=2, mode='bilinear')
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
         x = self.pad(x)
         x = self.conv(x)
         x = self.adain(x, gamma + 1.0, beta)

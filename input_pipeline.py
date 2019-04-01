@@ -25,7 +25,7 @@ class PairsDataset(Dataset):
     def __getitem__(self, i):
         """
         Returns:
-            A: a float tensor with shape [1, h, w].
+            A: a float tensor with shape [2, h, w].
             B: a float tensor with shape [3, h, w].
         """
 
@@ -45,9 +45,12 @@ class PairsDataset(Dataset):
             image = cv2.resize(image, self.size, cv2.INTER_LINEAR)
             edges, image = np.split(image, [1], axis=2)
 
+        white = np.array([255, 255, 255])
+        mask = 255 * (np.abs(white - image).mean(2, keepdims=True) < 10).astype('uint8')
+        edges = np.concatenate([edges, mask], axis=2)
         A = torch.FloatTensor(edges).permute(2, 0, 1).div(255.0)
         B = torch.FloatTensor(image).permute(2, 0, 1).div(255.0)
-        return A, B
+        return 1.0 - A, 1.0 - B
 
 
 def random_crop(image, gamma=0.5):
