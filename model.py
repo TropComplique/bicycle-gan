@@ -21,7 +21,7 @@ class LSGAN(nn.Module):
             scores: a tuple of float tensors
                 with any shape (something like [n, 1, h, w]).
             is_real: a boolean.
-            mask: a float tensor with shape [n, h, w]
+            mask: a float tensor with shape [n, 1, h, w]
         Returns:
             a float tensor with shape [].
         """
@@ -140,9 +140,9 @@ class BicycleGAN:
 
         # CREATE MASKS
 
-        M = A[:, 1]
-        M_another = A_another[:, 1]
-        # they are binary masks with shape [n, h, w]
+        M = A[:, 1].unsqueeze(1)
+        M_another = A_another[:, 1].unsqueeze(1)
+        # they are binary masks with shape [n, 1, h, w]
 
         # FOOL THE DISCRIMINATORS LOSSES
 

@@ -78,7 +78,7 @@ class Generator(nn.Module):
             nn.Linear(256, num_weights)
         )
 
-        self.down_path = nn.ModuleList(*down_path)
+        self.down_path = nn.ModuleList(down_path)
         self.blocks = nn.ModuleList(blocks)
         self.up_path = nn.ModuleList(up_path)
 
