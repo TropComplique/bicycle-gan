@@ -46,7 +46,13 @@ class PairsDataset(Dataset):
             edges, image = np.split(image, [1], axis=2)
 
         white = np.array([255, 255, 255])
-        mask = 255 * (np.abs(white - image).mean(2, keepdims=True) < 10).astype('uint8')
+        mask = 255 * (np.abs(white - image).mean(2) < 10).astype('uint8')
+
+        # fill holes
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (6, 6))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = np.expand_dims(mask, axis=2)
+
         edges = np.concatenate([edges, mask], axis=2)
         A = torch.FloatTensor(edges).permute(2, 0, 1).div(255.0)
         B = torch.FloatTensor(image).permute(2, 0, 1).div(255.0)
