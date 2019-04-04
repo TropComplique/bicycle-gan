@@ -4,13 +4,13 @@ from torch.utils.data import DataLoader
 from input_pipeline import PairsDataset
 from model import BicycleGAN
 
-BATCH_SIZE = 2
+
+BATCH_SIZE = 4
 DATA = '/home/dan/datasets/edges2shoes/train/'
-NUM_EPOCHS = 100
+NUM_EPOCHS = 60
 DEVICE = torch.device('cuda:0')
 MODEL_SAVE_PREFIX = 'models/run00'
 TRAIN_LOGS = 'losses_run00.json'
-SAVE_STEP = 30000
 
 
 def main():
@@ -34,7 +34,7 @@ def main():
            'l1: {3:.3f}, kl: {4:.4f}, lr: {5:.3f}, ' +\
            'fool_d1: {6:.3f}, fool_d2: {7:.3f}, total: {8:.3f}'
 
-    for e in range(NUM_EPOCHS):
+    for e in range(1, NUM_EPOCHS + 1):
         for A, B in data_loader:
 
             i += 1
@@ -49,10 +49,10 @@ def main():
             print(log)
             logs.append(losses)
 
-            if i % SAVE_STEP == 0:
-                model.save_model(MODEL_SAVE_PREFIX)
-                with open(TRAIN_LOGS, 'w') as f:
-                    json.dump(logs, f)
+        if e % 3 == 0:
+            model.save_model(MODEL_SAVE_PREFIX)
+            with open(TRAIN_LOGS, 'w') as f:
+                json.dump(logs, f)
 
 
 main()

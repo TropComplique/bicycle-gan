@@ -67,13 +67,13 @@ class BicycleGAN:
         self.D2 = D2.apply(weights_init).to(device)
 
         params = {
-            'lr': 2e-4,
+            'lr': 4e-4,
             'betas': (0.5, 0.999),
             'weight_decay': 1e-8
         }
         generator_groups = [
             {'params': [p for n, p in self.G.named_parameters() if 'mapping' not in n]},
-            {'params': self.G.mapping.parameters(), 'lr': 2e-5}
+            {'params': self.G.mapping.parameters(), 'lr': 4e-5}
         ]
         self.optimizer = {
             'G': optim.Adam(generator_groups, **params),
