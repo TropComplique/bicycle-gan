@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class Generator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, depth=48, downsample=4, num_blocks=4):
+    def __init__(self, in_channels, out_channels, depth=32, downsample=4, num_blocks=6):
         """
         Arguments:
             in_channels: an integer.
