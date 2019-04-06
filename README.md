@@ -1,5 +1,13 @@
-# bicycle-gan
+# BicycleGAN in `pytorch`
+This an implementation of [Toward Multimodal Image-to-Image Translation](https://arxiv.org/abs/1711.11586).
 
+## Requirements
+1. pytorch 1.0
+2. numpy, Pillow, opencv
+
+## Credit
+
+![examples](inference/samples.png)
 
 https://github.com/eveningglow/BicycleGAN-pytorch
 https://github.com/junyanz/BicycleGAN

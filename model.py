@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import LambdaLR
 
 from networks.generator import Generator
+from networks.unet import UNet
 from networks.encoder import ResNetEncoder
 from networks.discriminators import MultiScaleDiscriminator
 
@@ -45,7 +46,8 @@ class BicycleGAN:
         # in and out channels for the generator:
         a, b = 2, 3
 
-        G = Generator(a, b)
+        # G = Generator(a, b)
+        G = UNet(a, b)
         E = ResNetEncoder(b, z_dimension)
 
         # conditional discriminators
