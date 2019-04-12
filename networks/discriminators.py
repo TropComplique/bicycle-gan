@@ -8,7 +8,7 @@ class MultiScaleDiscriminator(nn.Module):
     This discriminator looks on
     patches of different scales.
     """
-    def __init__(self, in_channels, depth=48, downsample=3):
+    def __init__(self, in_channels, depth=32, downsample=3):
         super(MultiScaleDiscriminator, self).__init__()
 
         self.subnetwork1 = get_layers(in_channels, depth, downsample)

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class Generator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, depth=32, downsample=4, num_blocks=6):
+    def __init__(self, in_channels, out_channels, depth=64, downsample=3, num_blocks=4):
         """
         Arguments:
             in_channels: an integer.
@@ -69,13 +69,13 @@ class Generator(nn.Module):
         z_dimension = 8
 
         self.mapping = nn.Sequential(
-            nn.Linear(z_dimension, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, num_weights)
+            nn.Linear(z_dimension, 1024),
+            # nn.LeakyReLU(0.2, inplace=True),
+            # nn.Linear(256, 256),
+            #nn.LeakyReLU(0.2, inplace=True),
+            #nn.Linear(256, 256),
+            nn.ReLU(inplace=True),
+            nn.Linear(1024, num_weights)
         )
 
         self.down_path = nn.ModuleList(down_path)
@@ -194,7 +194,7 @@ class Upsample(nn.Module):
         x = F.interpolate(x, scale_factor=2, mode='nearest')
         x = self.pad(x)
         x = self.conv(x)
-        x = self.adain(x, gamma + 1.0, beta)
+        x = self.adain(x, gamma, beta)
         x = self.relu(x)
 
         return x
