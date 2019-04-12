@@ -70,10 +70,6 @@ class Generator(nn.Module):
 
         self.mapping = nn.Sequential(
             nn.Linear(z_dimension, 1024),
-            # nn.LeakyReLU(0.2, inplace=True),
-            # nn.Linear(256, 256),
-            #nn.LeakyReLU(0.2, inplace=True),
-            #nn.Linear(256, 256),
             nn.ReLU(inplace=True),
             nn.Linear(1024, num_weights)
         )

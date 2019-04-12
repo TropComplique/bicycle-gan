@@ -1,10 +1,11 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class UNet(nn.Module):
 
-    def __init__(self, in_channels, out_channels, depth=48, downsample=7):
+    def __init__(self, in_channels, out_channels, depth=64, downsample=5):
         super(UNet, self).__init__()
 
         # number of weights for all adains
@@ -28,13 +29,10 @@ class UNet(nn.Module):
         z_dimension = 8
 
         self.mapping = nn.Sequential(
-            nn.Linear(z_dimension, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, num_features)
+            nn.Linear(z_dimension, 1024),
+            nn.ReLU(inplace=True),
+            nn.Linear(1024, num_features),
+            nn.Tanh()
         )
 
         # UPSAMPLE
@@ -129,7 +127,7 @@ class AdaptiveInstanceNorm(nn.Module):
         """
         d = x.size(1)
         gamma, beta = torch.split(weights, [d, d], dim=1)
-        return (gamma + 1.0) * self.normalize(x) + beta
+        return gamma * self.normalize(x) + beta
 
 
 class UNetBlock(nn.Module):
@@ -160,15 +158,19 @@ class UNetUpsamplingBlock(nn.Module):
         super(UNetUpsamplingBlock, self).__init__()
 
         params = {
-            'kernel_size': 4, 'stride': 2,
+            'kernel_size': 3, 'stride': 1,
             'padding': 1, 'bias': True
         }
 
-        self.layers = nn.Sequential(
-            nn.ConvTranspose2d(in_channels, out_channels, **params),
-            nn.ReLU(inplace=True),
-            nn.InstanceNorm2d(out_channels)
-        )
+        self.conv = nn.Conv2d(in_channels, out_channels, **params)
+        self.relu = nn.ReLU(inplace=True)
+        self.instance_norm = nn.InstanceNorm2d(out_channels, affine=True)
 
     def forward(self, x):
-        return self.layers(x)
+
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
+        x = self.conv(x)
+        x = self.relu(x)
+        x = self.instance_norm(x)
+
+        return x

@@ -22,3 +22,6 @@ https://arxiv.org/abs/1711.11586
 
 Semantic Image Synthesis with Spatially-Adaptive Normalization
 https://arxiv.org/abs/1903.07291
+
+
+Latent Filter Scaling for Multimodal Unsupervised Image-to-Image Translation
