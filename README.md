@@ -7,7 +7,8 @@ This an implementation of [Toward Multimodal Image-to-Image Translation](https:/
 
 ## Credit
 
-![examples](inference/samples.png)
+dd220a94f3e84b0b6dea05fda277d905c61051a4
+![examples](inference/samples_run00.png)
 
 https://github.com/eveningglow/BicycleGAN-pytorch
 https://github.com/junyanz/BicycleGAN
