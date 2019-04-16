@@ -57,7 +57,7 @@ class BicycleGAN:
         D2 = MultiScaleDiscriminator(a + b - 1)
 
         def weights_init(m):
-            if isinstance(m, (nn.Conv2d, nn.Linear)):
+            if isinstance(m, (nn.Conv2d, nn.Linear, nn.ConvTranspose2d)):
                 init.xavier_normal_(m.weight, gain=0.02)
                 if m.bias is not None:
                     init.zeros_(m.bias)

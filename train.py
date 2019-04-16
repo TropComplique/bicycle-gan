@@ -24,10 +24,6 @@ def main():
     num_steps = NUM_EPOCHS * (len(dataset) // BATCH_SIZE)
     model = BicycleGAN(device=DEVICE, num_steps=num_steps)
 
-    # maybe use previously trained autoencoder:
-    # model.G.load_state_dict(torch.load('models/run00_just_ae_generator.pth'))
-    # model.E.load_state_dict(torch.load('models/run00_just_ae_encoder.pth'))
-
     logs = []
     i = 0  # number of weight updates
     text = 'e: {0}, i: {1}, discriminators_only: {2:.3f}, ' +\
