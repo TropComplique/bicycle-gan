@@ -8,12 +8,13 @@ This an implementation of [Toward Multimodal Image-to-Image Translation](https:/
 ## How to reproduce my results
 
 1. Download `edges2shoes` dataset from [here](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/datasets.md#pix2pix-datasets).
-2. Edit path in `train.py` and run it.
-3. You can also download trained by me models from [here](https://drive.google.com/drive/folders/1LE1VGs4ir5bClgtby94G5_IYoDzLL5Qp?usp=sharing).
+2. Edit the path in `train.py` file and run it.
+
+You can also download my trained models from [here](https://drive.google.com/drive/folders/1LE1VGs4ir5bClgtby94G5_IYoDzLL5Qp?usp=sharing).
 
 ## Notes
 
-1. For generator I use resnet-like architecture not unet (like they do in the original paper).
+1. For the generator I use resnet-like architecture not unet (like they do in the original paper).
 2. I insert style information into the generator using AdaIN layers (like in StyleGAN).
 3. I feed into the generator not only edges but also a binary mask.
 4. I also use the binary mask to mask the outputs of the discriminators.
