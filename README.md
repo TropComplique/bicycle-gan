@@ -10,7 +10,8 @@ This an implementation of [Toward Multimodal Image-to-Image Translation](https:/
 1. Download `edges2shoes` dataset from [here](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/datasets.md#pix2pix-datasets).
 2. Edit the path in `train.py` file and run it.
 
-You can also download my trained models from [here](https://drive.google.com/drive/folders/1LE1VGs4ir5bClgtby94G5_IYoDzLL5Qp?usp=sharing).
+You can also download my trained models from [here](https://drive.google.com/drive/folders/1LE1VGs4ir5bClgtby94G5_IYoDzLL5Qp?usp=sharing).  
+You can try them using `inference/test.ipynb`.
 
 ## Notes
 
